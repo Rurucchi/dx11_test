@@ -44,6 +44,8 @@
 #define STR2(x) #x
 #define STR(x) STR2(x)
 
+enum GameState { menu, pause, game };
+
 static void FatalError(const char* message)
 {
     MessageBoxA(NULL, message, "Error", MB_ICONEXCLAMATION);
@@ -490,6 +492,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
     ImGui_ImplWin32_Init(window);
     ImGui_ImplDX11_Init(device, context);
 
+	// RENDER LOOP
+
     for (;;)
     {
         // process all incoming Windows messages
@@ -510,6 +514,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
         GetClientRect(window, &rect);
         width = rect.right - rect.left;
         height = rect.bottom - rect.top;
+		
+		// RENDERING (DX)
 
         // resize swap chain if needed
         if (rtView == NULL || width != currentWidth || height != currentHeight)

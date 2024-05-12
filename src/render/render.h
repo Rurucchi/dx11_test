@@ -42,3 +42,22 @@
 #define STR2(x) #x
 #define STR(x) STR2(x)
 
+void init(window) {
+	
+}
+
+struct render {
+	// global variables
+	ID3D11Device* device;
+	ID3D11DeviceContext* context;
+	IDXGIAdapter* dxgiAdapter;
+	IDXGIFactory2* factory;
+	IDXGISwapChain1* SwapChain;
+	ID3D11Buffer* vbuffer;
+	
+	// render functions
+	ID3D11RenderTargetView* rtView;
+	ID3D11DepthStencilView* dsView; 
+	
+	// render functions
+} render;
