@@ -42,6 +42,13 @@
 #define STR2(x) #x
 #define STR(x) STR2(x)
 
+struct Vertex
+{
+    float position[2];
+    float uv[2];
+    float color[3];
+};
+
 void init(HWND window) {
 	
     // create D3D11 device & context
@@ -144,12 +151,7 @@ void init(HWND window) {
         dxgiDevice->Release();
     }
 
-    struct Vertex
-    {
-        float position[2];
-        float uv[2];
-        float color[3];
-    };
+
 
     ID3D11Buffer* vbuffer;
     {

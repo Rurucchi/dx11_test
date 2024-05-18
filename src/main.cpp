@@ -44,6 +44,8 @@
 #define STR2(x) #x
 #define STR(x) STR2(x)
 
+#include "./render/render.h"
+
 enum GameState { menu, pause, game };
 
 static void FatalError(const char* message)
