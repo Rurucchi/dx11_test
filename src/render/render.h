@@ -42,6 +42,8 @@
 #define STR2(x) #x
 #define STR(x) STR2(x)
 
+// ----------------------------------------------- STRUCTS
+
 struct Vertex
 {
     float position[2];
@@ -49,31 +51,54 @@ struct Vertex
     float color[3];
 };
 
-void init(HWND window) {
+struct renderContext {
+	// global variables
+	ID3D11Device* device;
+	ID3D11DeviceContext* context;
+	IDXGISwapChain1* swapChain;
+	ID3D11RenderTargetView* rtView;
+	ID3D11DepthStencilView* dsView; 
+	ID3D11Buffer* ubuffer;
+	ID3D11VertexShader* vshader;
+    ID3D11PixelShader* pshader;
+	ID3D11InputLayout* layout;
+	ID3D11RasterizerState* rasterizerState;
+	ID3D11Buffer* vbuffer;
+	ID3D11ShaderResourceView* textureView;
+	ID3D11DepthStencilState* depthState;
+	ID3D11BlendState* blendState;
+	ID3D11SamplerState* sampler;
+} render;
+
+// -------------------------------------------- FUNCTIONS
+
+HRESULT InitDX(HWND window, renderContext* rContext) {
+	
+	HRESULT hr;
 	
     // create D3D11 device & context
     {
         UINT flags = 0;
-#ifndef NDEBUG
-        // this enables VERY USEFUL debug messages in debugger output
-        flags |= D3D11_CREATE_DEVICE_DEBUG;
-#endif
+	#ifndef NDEBUG
+		// this enables VERY USEFUL debug messages in debugger output
+		flags |= D3D11_CREATE_DEVICE_DEBUG;
+	#endif
         D3D_FEATURE_LEVEL levels[] = { D3D_FEATURE_LEVEL_11_0 };
         hr = D3D11CreateDevice(
             NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, flags, levels, ARRAYSIZE(levels),
-            D3D11_SDK_VERSION, &device, NULL, &context);
-        // make sure device creation succeeeds before continuing
-        // for simple applciation you could retry device creation with
-        // D3D_DRIVER_TYPE_WARP driver type which enables software rendering
+            D3D11_SDK_VERSION, &rContext->device, NULL, &rContext->context);
+
+        // We could try D3D_DRIVER_TYPE_WARP driver type which enables software rendering
         // (could be useful on broken drivers or remote desktop situations)
         AssertHR(hr);
     }
 
-#ifndef NDEBUG
+	#ifndef NDEBUG
+	
     // for debug builds enable VERY USEFUL debug break on API errors
     {
         ID3D11InfoQueue* info;
-        device->QueryInterface(IID_ID3D11InfoQueue, (void**)&info);
+        rContext->device->QueryInterface(IID_ID3D11InfoQueue, (void**)&info);
         info->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_CORRUPTION, TRUE);
         info->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_ERROR, TRUE);
         info->Release(info);
@@ -92,14 +117,13 @@ void init(HWND window) {
     // after this there's no need to check for any errors on device functions manually
     // so all HRESULT return  values in this code will be ignored
     // debugger will break on errors anyway
-#endif
+	#endif
 
     // create DXGI swap chain
-    IDXGISwapChain1* swapChain;
     {
         // get DXGI device from D3D11 device
-        IDXGIDevice* dxgiDevice;
-        hr = device->QueryInterface(IID_IDXGIDevice, (void**)&dxgiDevice);
+		IDXGIDevice* dxgiDevice;
+        hr = rContext->device->QueryInterface(IID_IDXGIDevice, (void**)&dxgiDevice);
         AssertHR(hr);
 
         // get DXGI adapter from DXGI device
@@ -140,7 +164,7 @@ void init(HWND window) {
             .SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD,
         };
 
-        hr = factory->CreateSwapChainForHwnd((IUnknown*)device, window, &desc, NULL, NULL, &swapChain);
+        hr = factory->CreateSwapChainForHwnd((IUnknown*)rContext->device, window, &desc, NULL, NULL, &rContext->swapChain);
         AssertHR(hr);
 
         // disable silly Alt+Enter changing monitor resolution to match window size
@@ -153,7 +177,7 @@ void init(HWND window) {
 
 
 
-    ID3D11Buffer* vbuffer;
+    
     {
         struct Vertex rectangle1[] =
         {
@@ -173,13 +197,10 @@ void init(HWND window) {
         };
 
         D3D11_SUBRESOURCE_DATA initial = { .pSysMem = rectangle1 };
-        device->CreateBuffer(&desc, &initial, &vbuffer);
+        rContext->device->CreateBuffer(&desc, &initial, &rContext->vbuffer);
     }
 
     // vertex & pixel shaders for drawing triangle, plus input layout for vertex input
-    ID3D11InputLayout* layout;
-    ID3D11VertexShader* vshader;
-    ID3D11PixelShader* pshader;
     {
         // these must match vertex shader input layout (VS_INPUT in vertex shader source below)
         D3D11_INPUT_ELEMENT_DESC desc[] =
@@ -207,9 +228,9 @@ void init(HWND window) {
         #include "d3d11_vshader.h"
         #include "d3d11_pshader.h"
 
-        device->CreateVertexShader(device, d3d11_vshader, sizeof(d3d11_vshader), NULL, &vshader);
-        device->CreatePixelShader(device, d3d11_pshader, sizeof(d3d11_pshader), NULL, &pshader);
-        device->CreateInputLayout(device, desc, ARRAYSIZE(desc), d3d11_vshader, sizeof(d3d11_vshader), &layout);
+        rContext->device->CreateVertexShader(rContext->device, d3d11_vshader, sizeof(d3d11_vshader), NULL, &rContext->vshader);
+        rContext->device->CreatePixelShader(rContext->device, d3d11_pshader, sizeof(d3d11_pshader), NULL, &rContext->pshader);
+        rContext->device->CreateInputLayout(rContext->device, desc, ARRAYSIZE(desc), d3d11_vshader, sizeof(d3d11_vshader), &rContext->layout);
 #else
         const char hlsl[] =
             "#line " STR(__LINE__) "                                  \n\n" // actual line number in this file for nicer error messages
@@ -280,16 +301,15 @@ void init(HWND window) {
             Assert(!"Failed to compile pixel shader!");
         }
 
-        device->CreateVertexShader(vblob->GetBufferPointer(), vblob->GetBufferSize(), NULL, &vshader);
-        device->CreatePixelShader(pblob->GetBufferPointer(), pblob->GetBufferSize(), NULL, &pshader);
-        device->CreateInputLayout(desc, ARRAYSIZE(desc), vblob->GetBufferPointer(), vblob->GetBufferSize(), &layout);
+        rContext->device->CreateVertexShader(vblob->GetBufferPointer(), vblob->GetBufferSize(), NULL, &rContext->vshader);
+        rContext->device->CreatePixelShader(pblob->GetBufferPointer(), pblob->GetBufferSize(), NULL, &rContext->pshader);
+        rContext->device->CreateInputLayout(desc, ARRAYSIZE(desc), vblob->GetBufferPointer(), vblob->GetBufferSize(), &rContext->layout);
 
         pblob->Release();
         vblob->Release();
 #endif
     }
 
-    ID3D11Buffer* ubuffer;
     {
         D3D11_BUFFER_DESC desc =
         {
@@ -299,10 +319,10 @@ void init(HWND window) {
             .BindFlags = D3D11_BIND_CONSTANT_BUFFER,
             .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
         };
-        device->CreateBuffer(&desc, NULL, &ubuffer);
+        rContext->device->CreateBuffer(&desc, NULL, &rContext->ubuffer);
     }
 
-    ID3D11ShaderResourceView* textureView;
+
     {
         // checkerboard texture, with 50% transparency on black colors
         unsigned int pixels[] =
@@ -332,12 +352,12 @@ void init(HWND window) {
         };
 
         ID3D11Texture2D* texture;
-        device->CreateTexture2D(&desc, &data, &texture);
-        device->CreateShaderResourceView((ID3D11Resource*)texture, NULL, &textureView);
+        rContext->device->CreateTexture2D(&desc, &data, &texture);
+        rContext->device->CreateShaderResourceView((ID3D11Resource*)texture, NULL, &rContext->textureView);
         texture->Release();
     }
 
-    ID3D11SamplerState* sampler;
+    
     {
         D3D11_SAMPLER_DESC desc =
         {
@@ -351,10 +371,10 @@ void init(HWND window) {
             .MaxLOD = D3D11_FLOAT32_MAX,
         };
 
-        device->CreateSamplerState(&desc, &sampler);
+        rContext->device->CreateSamplerState(&desc, &rContext->sampler);
     }
 
-    ID3D11BlendState* blendState;
+
     {
         // enable alpha blending
         D3D11_BLEND_DESC desc = {0};
@@ -370,10 +390,10 @@ void init(HWND window) {
                 .RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL,
             },
    
-        device->CreateBlendState(&desc, &blendState);
+        rContext->device->CreateBlendState(&desc, &rContext->blendState);
     }
 
-    ID3D11RasterizerState* rasterizerState;
+    
     {
         // disable culling
         D3D11_RASTERIZER_DESC desc =
@@ -382,10 +402,10 @@ void init(HWND window) {
             .CullMode = D3D11_CULL_NONE,
             .DepthClipEnable = TRUE,
         };
-        device->CreateRasterizerState(&desc, &rasterizerState);
+        rContext->device->CreateRasterizerState(&desc, &rContext->rasterizerState);
     }
 
-    ID3D11DepthStencilState* depthState;
+    
     {
         // disable depth & stencil test
         D3D11_DEPTH_STENCIL_DESC desc =
@@ -399,42 +419,16 @@ void init(HWND window) {
             // .FrontFace = ... 
             // .BackFace = ...
         };
-        device->CreateDepthStencilState(&desc, &depthState);
+        rContext->device->CreateDepthStencilState(&desc, &rContext->depthState);
     }
 
-    ID3D11RenderTargetView* rtView = NULL;
-    ID3D11DepthStencilView* dsView = NULL;
+    rContext->rtView = NULL;
+    rContext->dsView = NULL;
 
-    // show the window
-    ShowWindow(window, SW_SHOWDEFAULT);
 
-    LARGE_INTEGER freq, c1;
-    QueryPerformanceFrequency(&freq);
-    QueryPerformanceCounter(&c1);
-
-    float angle = 0;
-    DWORD currentWidth = 0;
-    DWORD currentHeight = 0;
-	
-	// IMGUI Init
-
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    ImGui::StyleColorsDark();
-    
-    ImGui_ImplWin32_Init(window);
-    ImGui_ImplDX11_Init(device, context);
+	return hr;
 }
 
-struct render {
-	// global variables
-	ID3D11Device* device;
-	ID3D11DeviceContext* context;
-	IDXGISwapChain1* swapChain;
-	
-	ID3D11RenderTargetView* rtView;
-	ID3D11DepthStencilView* dsView; 
-	
-	// render functions
-} render;
+
+
+

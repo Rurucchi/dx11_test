@@ -22,13 +22,6 @@
 #include "imgui_impl_dx11.h"
 
 
-#include "imgui_impl_win32.cpp"
-#include "imgui_impl_dx11.cpp"
-#include "imgui.cpp"
-#include "imgui_draw.cpp"
-#include "imgui_tables.cpp"
-#include "imgui_widgets.cpp"
-
 // replace this with your favorite Assert() implementation
 #include <intrin.h>
 #define Assert(cond) do { if (!(cond)) __debugbreak(); } while (0)
@@ -111,13 +104,34 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 
     HRESULT hr;
 
-    ID3D11Device* device;
-    ID3D11DeviceContext* context;
+	renderContext rContext;
+	
+	hr = InitDX(window, &rContext);
 
 
-	// RENDER LOOP
 
-    for (;;)
+    // show the window
+    ShowWindow(window, SW_SHOWDEFAULT);
+
+    LARGE_INTEGER freq, c1;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&c1);
+
+    float angle = 0;
+    DWORD currentWidth = 0;
+    DWORD currentHeight = 0;
+	
+	// IMGUI Init
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    ImGui::StyleColorsDark();
+    
+    ImGui_ImplWin32_Init(window);
+    ImGui_ImplDX11_Init(rContext.device, rContext.context);
+
+	for (;;)
     {
         // process all incoming Windows messages
         MSG msg;
@@ -141,21 +155,21 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 		// RENDERING (DX)
 
         // resize swap chain if needed
-        if (rtView == NULL || width != currentWidth || height != currentHeight)
+        if (rContext.rtView == NULL || width != currentWidth || height != currentHeight)
         {
-            if (rtView)
+            if (rContext.rtView)
             {
                 // release old swap chain buffers
-                context->ClearState();
-                rtView->Release();
-                dsView->Release();
-                rtView = NULL;
+                rContext.context->ClearState();
+                rContext.rtView->Release();
+                rContext.dsView->Release();
+                rContext.rtView = NULL;
             }
 
             // resize to new size for non-zero size
             if (width != 0 && height != 0)
             {
-                hr = swapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
+                hr = rContext.swapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
                 if (FAILED(hr))
                 {
                     FatalError("Failed to resize swap chain!");
@@ -163,8 +177,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 
                 // create RenderTarget view for new backbuffer texture
                 ID3D11Texture2D* backbuffer;
-                swapChain->GetBuffer(0, IID_ID3D11Texture2D, (void**)&backbuffer);
-                device->CreateRenderTargetView((ID3D11Resource*)backbuffer, NULL, &rtView);
+                rContext.swapChain->GetBuffer(0, IID_ID3D11Texture2D, (void**)&backbuffer);
+                rContext.device->CreateRenderTargetView((ID3D11Resource*)backbuffer, NULL, &rContext.rtView);
                 backbuffer->Release();
 
                 D3D11_TEXTURE2D_DESC depthDesc = 
@@ -181,8 +195,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 
                 // create new depth stencil texture & DepthStencil view
                 ID3D11Texture2D* depth;
-                device->CreateTexture2D(&depthDesc, NULL, &depth);
-                device->CreateDepthStencilView((ID3D11Resource*)depth, NULL, &dsView);
+                rContext.device->CreateTexture2D(&depthDesc, NULL, &depth);
+                rContext.device->CreateDepthStencilView((ID3D11Resource*)depth, NULL, &rContext.dsView);
                 depth->Release();
             }
 
@@ -191,7 +205,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
         }
 
         // can render only if window size is non-zero - we must have backbuffer & RenderTarget view created
-        if (rtView)
+        if (rContext.rtView)
         {
             LARGE_INTEGER c2;
             QueryPerformanceCounter(&c2);
@@ -211,8 +225,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 
             // clear screen
             FLOAT color[] = { 0.392f, 0.584f, 0.929f, 1.f };
-            context->ClearRenderTargetView(rtView, color);
-            context->ClearDepthStencilView(dsView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.f, 0);
+            rContext.context->ClearRenderTargetView(rContext.rtView, color);
+            rContext.context->ClearDepthStencilView(rContext.dsView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.f, 0);
 
             // setup 4x4c rotation matrix in uniform
             {
@@ -230,38 +244,38 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 
                 D3D11_MAPPED_SUBRESOURCE mapped;
 				
-                context->Map((ID3D11Resource*)ubuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+                rContext.context->Map((ID3D11Resource*)rContext.ubuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
                 memcpy(mapped.pData, matrix, sizeof(matrix));
-                context->Unmap((ID3D11Resource*)ubuffer, 0);
+                rContext.context->Unmap((ID3D11Resource*)rContext.ubuffer, 0);
             }
 
             // Input Assembler
-            context->IASetInputLayout(layout);
-            context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            rContext.context->IASetInputLayout(rContext.layout);
+            rContext.context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             UINT stride = sizeof(struct Vertex);
             UINT offset = 0;
-			context->IASetVertexBuffers(0, 1, &vbuffer, &stride, &offset);
+			rContext.context->IASetVertexBuffers(0, 1, &rContext.vbuffer, &stride, &offset);
 
             // Vertex Shader
-            context->VSSetConstantBuffers(0, 1, &ubuffer);
-            context->VSSetShader(vshader, NULL, 0);
+            rContext.context->VSSetConstantBuffers(0, 1, &rContext.ubuffer);
+            rContext.context->VSSetShader(rContext.vshader, NULL, 0);
 
             // Rasterizer Stage
-            context->RSSetViewports(1, &viewport);
-            context->RSSetState(rasterizerState);
+            rContext.context->RSSetViewports(1, &viewport);
+            rContext.context->RSSetState(rContext.rasterizerState);
 
             // Pixel Shader
-            context->PSSetSamplers(0, 1, &sampler);
-            context->PSSetShaderResources(0, 1, &textureView);
-            context->PSSetShader(pshader, NULL, 0);
+            rContext.context->PSSetSamplers(0, 1, &rContext.sampler);
+            rContext.context->PSSetShaderResources(0, 1, &rContext.textureView);
+            rContext.context->PSSetShader(rContext.pshader, NULL, 0);
 
             // Output Merger
-            context->OMSetBlendState(blendState, NULL, ~0U);
-            context->OMSetDepthStencilState(depthState, 0);
-            context->OMSetRenderTargets(1, &rtView, dsView);
+			rContext.context->OMSetBlendState(rContext.blendState, NULL, ~0U);
+            rContext.context->OMSetDepthStencilState(rContext.depthState, 0);
+            rContext.context->OMSetRenderTargets(1, &rContext.rtView, rContext.dsView);
 
             // draw 3 vertices
-            context->Draw(6, 0);
+            rContext.context->Draw(6, 0);
 			
 			// IMGUI RENDER
 			ImGui_ImplDX11_NewFrame();
@@ -282,7 +296,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 
         // change to FALSE to disable vsync
         BOOL vsync = TRUE;
-        hr = swapChain->Present(vsync ? 1 : 0, 0);
+        hr = rContext.swapChain->Present(vsync ? 1 : 0, 0);
         if (hr == DXGI_STATUS_OCCLUDED)
         {
             // window is minimized, cannot vsync - instead sleep a bit
@@ -296,5 +310,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
             FatalError("Failed to present swap chain! Device lost?");
         }
     }
+
 	return 1;
 }
