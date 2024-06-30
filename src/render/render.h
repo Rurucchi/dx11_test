@@ -1,3 +1,13 @@
+/*  ----------------------------------- INFOS
+	This header file contains functions related to rendering with D3D11.
+	
+*/
+
+// LOCAL DEPENDENCIES : types.h, platform.h, file.h
+
+#ifndef _RENDERH_
+#define _RENDERH_
+
 #define COBJMACROS
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -27,10 +37,14 @@
 #include "imgui_tables.cpp"
 #include "imgui_widgets.cpp"
 
+// custom libs
+#include "platform.h"
+#include "types.h"
+#include "file.h"
+
+
 // replace this with your favorite Assert() implementation
 #include <intrin.h>
-#define Assert(cond) do { if (!(cond)) __debugbreak(); } while (0)
-#define AssertHR(hr) Assert(SUCCEEDED(hr))
 
 #pragma comment (lib, "gdi32")
 #pragma comment (lib, "user32")
@@ -42,37 +56,272 @@
 #define STR2(x) #x
 #define STR(x) STR2(x)
 
+
 // ----------------------------------------------- STRUCTS
 
-struct Vertex
+// types
+
+struct vertex
 {
     float position[2];
     float uv[2];
     float color[3];
 };
 
-struct renderContext {
-	// global variables
+struct quad_mesh {
+	i32 x;
+	i32 y;
+	float size;
+	float orientation;
+};
+
+struct viewport_size {
+	int height;
+	int width;
+};
+
+// ----- api stuff
+
+struct render_context {
+	// basic device stuff
 	ID3D11Device* device;
 	ID3D11DeviceContext* context;
 	IDXGISwapChain1* swapChain;
+	
+	// rc states
 	ID3D11RenderTargetView* rtView;
 	ID3D11DepthStencilView* dsView; 
-	ID3D11Buffer* ubuffer;
-	ID3D11VertexShader* vshader;
-    ID3D11PixelShader* pshader;
 	ID3D11InputLayout* layout;
 	ID3D11RasterizerState* rasterizerState;
-	ID3D11Buffer* vbuffer;
+	
+	
+	ID3D11VertexShader* vshader;
+    ID3D11PixelShader* pshader;
 	ID3D11ShaderResourceView* textureView;
 	ID3D11DepthStencilState* depthState;
 	ID3D11BlendState* blendState;
+	
+	// buffers and shaders
+	int VertexCount;
+	vertex VertexQueue[2048];
+	ID3D11Buffer* vbuffer;
+	ID3D11Buffer* ubuffer;
 	ID3D11SamplerState* sampler;
-} render;
+};
 
-// -------------------------------------------- FUNCTIONS
 
-HRESULT InitDX(HWND window, renderContext* rContext) {
+// -------------------------------------------------------------------------------------------- FUNCTIONS
+
+// --------------------------------- RENDER_QUEUE
+
+void RENDER_QUEUE_Quad(quad_mesh* quadData, render_context* rContext) {
+        // .topLeft = {quadData->x - (quadData->size/2), quadData->y + (quadData->size/2)},
+        // .topRight = {quadData->x + (quadData->size/2), quadData->y + (quadData->size/2)},
+        // .bottomLeft = {quadData->x - (quadData->size/2), quadData->y - (quadData->size/2)},
+        // .bottomRight = {quadData->x + (quadData->size/2), quadData->y - (quadData->size/2)},
+    
+	
+	// todo: refactor this 
+    struct vertex VQuad[] =
+    {
+        // first triangle ◥
+        { quadData->x - (quadData->size/2), quadData->y + (quadData->size/2), { 25.0f, 50.0f }, { 1, 0, 0 } },   // top left
+        { quadData->x + (quadData->size/2), quadData->y + (quadData->size/2), {  0.0f,  0.0f }, { 0, 1, 0 } },   // top right
+        { quadData->x + (quadData->size/2), quadData->y - (quadData->size/2), { 50.0f,  0.0f }, { 0, 0, 1 } },   // bottom right
+        // second triangle ◣
+        { quadData->x - (quadData->size/2), quadData->y + (quadData->size/2), { 50.0f, 0.0f }, { 0, 0, 1 } },    // top left
+        { quadData->x - (quadData->size/2), quadData->y - (quadData->size/2), {  25.0f,  50.0f }, { 1, 0, 0 } }, // bottom left
+        { quadData->x + (quadData->size/2), quadData->y - (quadData->size/2), { 0.0f,  0.0f }, { 0, 1, 0 } },    // bottom right
+    };
+	
+    for(int i=0; i<6; i++) {
+		rContext->VertexQueue[rContext->VertexCount] = VQuad[i];
+		rContext->VertexCount++;
+	};
+}
+
+// --------------------------------- RENDER_UPLOAD
+
+void RENDER_UPLOAD_DYNAMIC_VertexQueue(render_context* rContext){
+	D3D11_MAPPED_SUBRESOURCE mapped;
+	
+	rContext->context->Map((ID3D11Resource*)rContext->vbuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+	memcpy(mapped.pData, rContext->VertexQueue, sizeof(vertex)*rContext->VertexCount);
+	rContext->context->Unmap((ID3D11Resource*)rContext->vbuffer, 0);
+}
+
+// --------------------------------- ROTATE OBJECT
+
+
+void RENDER_INIT_IMMUTABLE_uBuffer(render_context *rContext){
+	// setup 4x4c rotation matrix in uniform
+	// angle += delta * 0.2f * (float)M_PI / 20.0f; // full rotation in 20 seconds
+	// angle = fmodf(angle, 2.0f * (float)M_PI);
+
+	// float aspect = (float)height / width;
+	float matrix[16] =
+	{
+		1, 0, 0, 0,
+		0, 1, 0, 0,
+		0, 0, 1, 0,
+		0, 0, 0, 1,
+	};
+	
+	D3D11_BUFFER_DESC desc =
+    {
+        .ByteWidth = sizeof(matrix),
+		.Usage = D3D11_USAGE_DYNAMIC,
+		.BindFlags = D3D11_BIND_CONSTANT_BUFFER,
+		.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
+	};
+
+	D3D11_SUBRESOURCE_DATA initial = { .pSysMem = matrix };
+    rContext->device->CreateBuffer(&desc, NULL, &rContext->ubuffer);
+	
+	D3D11_MAPPED_SUBRESOURCE mapped;
+	
+	rContext->context->Map(rContext->ubuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+	memcpy(mapped.pData, matrix, sizeof(matrix));
+	rContext->context->Unmap(rContext->ubuffer, 0);
+}
+
+// camera projection
+matrix game_OrthographicProjection(game_camera* camera, float width, float height)
+{
+    float L = camera->position.x - width / 2.f;
+    float R = camera->position.x + width / 2.f;
+    float T = camera->position.y + height / 2.f;
+    float B = camera->position.y - height / 2.f;
+    matrix res = 
+    {
+        2.0f/(R-L),   0.0f,           0.0f,       0.0f,
+        0.0f,         2.0f/(T-B),     0.0f,       0.0f,
+        0.0f,         0.0f,           0.5f,       0.0f,
+        (R+L)/(L-R),  (T+B)/(B-T),    0.5f,       1.0f,
+    };
+    
+    return res;
+}
+
+void RENDER_EXEC_PIPELINE(render_context* rContext, viewport_size* vpSize){
+	        D3D11_VIEWPORT viewport =
+            {
+                .TopLeftX = 0,
+                .TopLeftY = 0,
+                .Width = (FLOAT)vpSize->width,
+                .Height = (FLOAT)vpSize->height,
+                .MinDepth = 0,
+                .MaxDepth = 1,
+            };
+	 
+            // Input Assembler
+            rContext->context->IASetInputLayout(rContext->layout);
+            rContext->context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            UINT stride = sizeof(struct vertex);
+            UINT offset = 0;
+			rContext->context->IASetVertexBuffers(0, 1, &rContext->vbuffer, &stride, &offset);
+
+            // Vertex Shader
+            rContext->context->VSSetConstantBuffers(0, 1, &rContext->ubuffer);
+            rContext->context->VSSetShader(rContext->vshader, NULL, 0);
+
+            // Rasterizer Stage
+            rContext->context->RSSetViewports(1, &viewport);
+            rContext->context->RSSetState(rContext->rasterizerState);
+
+            // Pixel Shader
+            rContext->context->PSSetSamplers(0, 1, &rContext->sampler);
+            rContext->context->PSSetShaderResources(0, 1, &rContext->textureView);
+            rContext->context->PSSetShader(rContext->pshader, NULL, 0);
+
+            // Output Merger
+			rContext->context->OMSetBlendState(rContext->blendState, NULL, ~0U);
+            rContext->context->OMSetDepthStencilState(rContext->depthState, 0);
+            rContext->context->OMSetRenderTargets(1, &rContext->rtView, rContext->dsView);	
+}
+
+// --------------------------------- RENDER_INIT
+
+void RENDER_INIT_DYNAMIC_VertexBuffer(render_context *rContext, int bufferSize) {
+	D3D11_BUFFER_DESC desc =
+    {
+        .ByteWidth = sizeof(vertex) * bufferSize,
+		.Usage = D3D11_USAGE_DYNAMIC,
+		.BindFlags = D3D11_BIND_VERTEX_BUFFER,
+		.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
+	};
+
+	D3D11_SUBRESOURCE_DATA initial = { .pSysMem = rContext->VertexQueue };
+    rContext->device->CreateBuffer(&desc, NULL, &rContext->vbuffer);
+}
+
+// --------------------------------- RENDER_RESIZE_SWAP_CHAIN
+
+void RENDER_RESIZE_SWAP_CHAIN(HWND window, DWORD currentWidth, DWORD currentHeight, render_context* rContext) {
+	
+        // get current size for window client area
+        RECT rect;
+        GetClientRect(window, &rect);
+		
+		viewport_size viewport = {
+			.height = rect.bottom - rect.top,
+			.width = rect.right - rect.left,
+		};
+		
+	    if (rContext->rtView == NULL || viewport.width != currentWidth || viewport.height != currentHeight) {
+            if (rContext->rtView)
+            {
+                // release old swap chain buffers
+                rContext->context->ClearState();
+                rContext->rtView->Release();
+                rContext->dsView->Release();
+                rContext->rtView = NULL;
+            }
+
+            // resize to new size for non-zero size
+            if (width != 0 && height != 0)
+            {
+                hr = rContext->swapChain->ResizeBuffers(0, viewport.width, viewport.height, DXGI_FORMAT_UNKNOWN, 0);
+                if (FAILED(hr))
+                {
+                    FatalError("Failed to resize swap chain!");
+                }
+
+                // create RenderTarget view for new backbuffer texture
+                ID3D11Texture2D* backbuffer;
+                rContext->swapChain->GetBuffer(0, IID_ID3D11Texture2D, (void**)&backbuffer);
+                rContext->device->CreateRenderTargetView((ID3D11Resource*)backbuffer, NULL, &rContext.rtView);
+                backbuffer->Release();
+
+                D3D11_TEXTURE2D_DESC depthDesc = 
+                {
+                    .Width = (ui32)viewport.width,
+                    .Height = (ui32)viewport.height,
+                    .MipLevels = 1,
+                    .ArraySize = 1,
+                    .Format = DXGI_FORMAT_D32_FLOAT, // or use DXGI_FORMAT_D32_FLOAT_S8X24_UINT if you need stencil
+                    .SampleDesc = { 1, 0 },
+                    .Usage = D3D11_USAGE_DEFAULT,
+                    .BindFlags = D3D11_BIND_DEPTH_STENCIL,
+                };
+
+                // create new depth stencil texture & DepthStencil view
+                ID3D11Texture2D* depth;
+                rContext->device->CreateTexture2D(&depthDesc, NULL, &depth);
+                rContext->device->CreateDepthStencilView((ID3D11Resource*)depth, NULL, &rContext.dsView);
+                depth->Release();
+            }
+
+            currentWidth = viewport.width;
+            currentHeight = viewport.height;
+        }
+}
+
+
+
+// --------------------------------- RENDER_QUEUE
+
+HRESULT RENDER_INIT_DX(HWND window, render_context* rContext) {
 	
 	HRESULT hr;
 	
@@ -118,6 +367,8 @@ HRESULT InitDX(HWND window, renderContext* rContext) {
     // so all HRESULT return  values in this code will be ignored
     // debugger will break on errors anyway
 	#endif
+	
+
 
     // create DXGI swap chain
     {
@@ -176,155 +427,43 @@ HRESULT InitDX(HWND window, renderContext* rContext) {
     }
 
 
-
-    
-    {
-        struct Vertex rectangle1[] =
-        {
-            { { -0.75f, +0.75f }, { 25.0f, 50.0f }, { 1, 0, 0 } },
-            { { -0.75f, -0.75f }, {  0.0f,  0.0f }, { 0, 1, 0 } },
-            { { +0.75f, +0.75f }, { 50.0f,  0.0f }, { 0, 0, 1 } },
-			{ { +0.75f, +0.75f }, { 50.0f, 0.0f }, { 0, 0, 1 } },
-            { { +0.75f, -0.75f }, {  25.0f,  50.0f }, { 1, 0, 0 } },
-            { { -0.75f, -0.75f }, { 0.0f,  0.0f }, { 0, 1, 0 } },
-        };
-
-        D3D11_BUFFER_DESC desc =
-        {
-            .ByteWidth = sizeof(rectangle1),
-            .Usage = D3D11_USAGE_IMMUTABLE,
-            .BindFlags = D3D11_BIND_VERTEX_BUFFER,
-        };
-
-        D3D11_SUBRESOURCE_DATA initial = { .pSysMem = rectangle1 };
-        rContext->device->CreateBuffer(&desc, &initial, &rContext->vbuffer);
-    }
+   
 
     // vertex & pixel shaders for drawing triangle, plus input layout for vertex input
     {
         // these must match vertex shader input layout (VS_INPUT in vertex shader source below)
         D3D11_INPUT_ELEMENT_DESC desc[] =
         {
-            { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT,    0, offsetof(struct Vertex, position), D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, offsetof(struct Vertex, uv),       D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "COLOR",    0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(struct Vertex, color),    D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT,    0, offsetof(struct vertex, position), D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, offsetof(struct vertex, uv),       D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "COLOR",    0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(struct vertex, color),    D3D11_INPUT_PER_VERTEX_DATA, 0 },
         };
 
-#if 0
-        // alternative to hlsl compilation at runtime is to precompile shaders offline
-        // it improves startup time - no need to parse hlsl files at runtime!
-        // and it allows to remove runtime dependency on d3dcompiler dll file
 
-        // a) save shader source code into "shader.hlsl" file
-        // b) run hlsl compiler to compile shader, these run compilation with optimizations and without debug info:
-        //      fxc.exe /nologo /T vs_5_0 /E vs /O3 /WX /Zpc /Ges /Fh d3d11_vshader.h /Vn d3d11_vshader /Qstrip_reflect /Qstrip_debug /Qstrip_priv shader.hlsl
-        //      fxc.exe /nologo /T ps_5_0 /E ps /O3 /WX /Zpc /Ges /Fh d3d11_pshader.h /Vn d3d11_pshader /Qstrip_reflect /Qstrip_debug /Qstrip_priv shader.hlsl
-        //    they will save output to d3d11_vshader.h and d3d11_pshader.h files
-        // c) change #if 0 above to #if 1
+		char vsLocation[] = "triangle.vs";
+		char psLocation[] = "triangle.ps";
+	
+		complete_file vblob = {0};
+		complete_file pblob = {0};
+		
+		FILE_FULLREAD(vsLocation, &vblob);
+		FILE_FULLREAD(psLocation, &pblob);
+		
+		
+		// this is where we send shaders to the GPU
+		
+        rContext->device->CreateVertexShader(vblob.memory, vblob.size, NULL, &rContext->vshader);
+        rContext->device->CreatePixelShader(pblob.memory, pblob.size, NULL, &rContext->pshader);
+        rContext->device->CreateInputLayout(desc, ARRAYSIZE(desc), vblob.memory, vblob.size, &rContext->layout);
 
-        // you can also use "/Fo d3d11_*shader.bin" argument to save compiled shader as binary file to store with your assets
-        // then provide binary data for Create*Shader functions below without need to include shader bytes in C
-
-        #include "d3d11_vshader.h"
-        #include "d3d11_pshader.h"
-
-        rContext->device->CreateVertexShader(rContext->device, d3d11_vshader, sizeof(d3d11_vshader), NULL, &rContext->vshader);
-        rContext->device->CreatePixelShader(rContext->device, d3d11_pshader, sizeof(d3d11_pshader), NULL, &rContext->pshader);
-        rContext->device->CreateInputLayout(rContext->device, desc, ARRAYSIZE(desc), d3d11_vshader, sizeof(d3d11_vshader), &rContext->layout);
-#else
-        const char hlsl[] =
-            "#line " STR(__LINE__) "                                  \n\n" // actual line number in this file for nicer error messages
-            "                                                           \n"
-            "struct VS_INPUT                                            \n"
-            "{                                                          \n"
-            "     float2 pos   : POSITION;                              \n" // these names must match D3D11_INPUT_ELEMENT_DESC array
-            "     float2 uv    : TEXCOORD;                              \n"
-            "     float3 color : COLOR;                                 \n"
-            "};                                                         \n"
-            "                                                           \n"
-            "struct PS_INPUT                                            \n"
-            "{                                                          \n"
-            "  float4 pos   : SV_POSITION;                              \n" // these names do not matter, except SV_... ones
-            "  float2 uv    : TEXCOORD;                                 \n"
-            "  float4 color : COLOR;                                    \n"
-            "};                                                         \n"
-            "                                                           \n"
-            "cbuffer cbuffer0 : register(b0)                            \n" // b0 = constant buffer bound to slot 0
-            "{                                                          \n"
-            "    float4x4 uTransform;                                   \n"
-            "}                                                          \n"
-            "                                                           \n"
-            "sampler sampler0 : register(s0);                           \n" // s0 = sampler bound to slot 0
-            "                                                           \n"
-            "Texture2D<float4> texture0 : register(t0);                 \n" // t0 = shader resource bound to slot 0
-            "                                                           \n"
-            "PS_INPUT vs(VS_INPUT input)                                \n"
-            "{                                                          \n"
-            "    PS_INPUT output;                                       \n"
-            "    output.pos = mul(uTransform, float4(input.pos, 0, 1)); \n"
-            "    output.uv = input.uv;                                  \n"
-            "    output.color = float4(input.color, 1);                 \n"
-            "    return output;                                         \n"
-            "}                                                          \n"
-            "                                                           \n"
-            "float4 ps(PS_INPUT input) : SV_TARGET                      \n"
-            "{                                                          \n"
-            "    float4 tex = texture0.Sample(sampler0, input.uv);      \n"
-            "    return input.color * tex;                              \n"
-            "}                                                          \n";
-        ;
-
-        UINT flags = D3DCOMPILE_PACK_MATRIX_COLUMN_MAJOR | D3DCOMPILE_ENABLE_STRICTNESS | D3DCOMPILE_WARNINGS_ARE_ERRORS;
-#ifndef NDEBUG
-        flags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#else
-        flags |= D3DCOMPILE_OPTIMIZATION_LEVEL3;
-#endif
-
-        ID3DBlob* error;
-
-        ID3DBlob* vblob;
-        hr = D3DCompile(hlsl, sizeof(hlsl), NULL, NULL, NULL, "vs", "vs_5_0", flags, 0, &vblob, &error);
-        if (FAILED(hr))
-        {
-            const char* message = (char*)error->GetBufferPointer();
-            OutputDebugStringA(message);
-            Assert(!"Failed to compile vertex shader!");
-        }
-
-        ID3DBlob* pblob;
-        hr = D3DCompile(hlsl, sizeof(hlsl), NULL, NULL, NULL, "ps", "ps_5_0", flags, 0, &pblob, &error);
-        if (FAILED(hr))
-        {
-            const char* message = (char*)error->GetBufferPointer();
-            OutputDebugStringA(message);
-            Assert(!"Failed to compile pixel shader!");
-        }
-
-        rContext->device->CreateVertexShader(vblob->GetBufferPointer(), vblob->GetBufferSize(), NULL, &rContext->vshader);
-        rContext->device->CreatePixelShader(pblob->GetBufferPointer(), pblob->GetBufferSize(), NULL, &rContext->pshader);
-        rContext->device->CreateInputLayout(desc, ARRAYSIZE(desc), vblob->GetBufferPointer(), vblob->GetBufferSize(), &rContext->layout);
-
-        pblob->Release();
-        vblob->Release();
-#endif
+		FILE_FULLFREE(&vblob);
+		FILE_FULLFREE(&pblob);
     }
-
-    {
-        D3D11_BUFFER_DESC desc =
-        {
-            // space for 4x4 float matrix (cbuffer0 from pixel shader)
-            .ByteWidth = 4 * 4 * sizeof(float),
-            .Usage = D3D11_USAGE_DYNAMIC,
-            .BindFlags = D3D11_BIND_CONSTANT_BUFFER,
-            .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
-        };
-        rContext->device->CreateBuffer(&desc, NULL, &rContext->ubuffer);
-    }
-
 
     {
         // checkerboard texture, with 50% transparency on black colors
+		
+		// todo: asset pipeline for textures
         unsigned int pixels[] =
         {
             0x80000000, 0xffffffff,
@@ -422,6 +561,13 @@ HRESULT InitDX(HWND window, renderContext* rContext) {
         rContext->device->CreateDepthStencilState(&desc, &rContext->depthState);
     }
 
+
+	// create Dynamic Shader Buffer
+    {
+		RENDER_INIT_DYNAMIC_VertexBuffer(rContext, 2048);
+		RENDER_INIT_IMMUTABLE_uBuffer(rContext);
+    }
+
     rContext->rtView = NULL;
     rContext->dsView = NULL;
 
@@ -429,6 +575,26 @@ HRESULT InitDX(HWND window, renderContext* rContext) {
 	return hr;
 }
 
+// ------------------------------------- IMGUI CUSTOM STUFF
+
+void IMGUI_INIT(HWND window, render_context rContext) {
+	// IMGUI Init
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    ImGui::StyleColorsDark();
+    
+    ImGui_ImplWin32_Init(window);
+    ImGui_ImplDX11_Init(rContext.device, rContext.context);
+}
+
+void IMGUI_RENDER() {
+	ImGui_ImplDX11_NewFrame();
+	ImGui_ImplWin32_NewFrame();
+	ImGui::NewFrame();
+} 
 
 
 
+#endif /* _RENDERH_ */

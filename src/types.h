@@ -16,15 +16,22 @@
 
 typedef unsigned int uint;
 
-typedef uint8_t uint8;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint64_t uint64;
+typedef uint8_t ui8;
+typedef uint16_t ui16;
+typedef uint32_t ui32;
+typedef uint64_t ui64;
 
-typedef int8_t int8;
-typedef int16_t int16;
-typedef int32_t int32;
-typedef int64_t int64;
+typedef int8_t i8;
+typedef int16_t i16;
+typedef int32_t i32;
+typedef int64_t i64;
+
+typedef Vector2 v2;
+typedef Vector3 v3;
+typedef Vector4 v4;
+typedef Matrix mx;
+
+typedef int64_t i64;
 
 //  ----------------------------------- NUMBERS AND MEMORY
 
@@ -47,39 +54,6 @@ typedef struct floatPOINT{
 //  ----------------------------------- PLATFORM
 
 
-typedef struct completeFile {
-	int32 size;
-	void *memory;
-} completeFile;
-
-
-// disable compiler memory alligment
-#pragma pack(push, 1)
-typedef struct file_bitmap_header
-{
-    // header: 14 bytes
-    char formatID[2];
-    uint32 size;
-    uint32 pad;
-    uint32 offset; // start of the data array
-} file_bitmap_header;
-
-typedef struct file_bitmap_info_header
-{
-    uint32 headerSize;
-    int32 width;
-    int32 height;
-    uint16 numPlanes;
-    uint16 bpp; // bits per pixel
-    char compression[4];
-    uint32 imageSize;
-    int32 hres;
-    int32 vres;
-    uint32 numColors; // number of colors in the palette
-    uint32 numImpColors; // number of important colors used
-} file_bitmap_info_header;
-#pragma pack(pop)
-
 typedef struct file_bitmap {
 	file_bitmap_header *bitmapHeader;
 	file_bitmap_info_header *bitmapInfoHeader;
@@ -87,28 +61,10 @@ typedef struct file_bitmap {
 
 // ----------------------------------- GAME LOGIC
 
-// game state 
-typedef struct game_state {
-	int pause;	// if the game is paused (menu has the game paused by default?) 0 or 1.
-	int level;	// level of the game, 0 is the main menu
-	int difficulty; // difficulty : easy(0), medium(1), hard(2)
-} game_state;
 
-// game size
-typedef struct virtual_game_size {
-	int horizontal;
-	int vertical;
-} virtual_game_size;
 
 //  ----------------------------------- RENDERING
 
-// texture
-typedef struct texture {
-	void *memory;
-	int memorySize;
-	int width;
-	int height;
-	int bytesPerPixel;
-} texture;
+
 
 #endif /* _TYPESH_ */

@@ -1,39 +1,85 @@
+/*  ----------------------------------- INFOS
+    This header file contains most of the basic calls to Windows API.
+    
+*/
+
+// LOCAL DEPENDENCIES : types.h
+
 #ifndef _PLATFORMH_
 #define _PLATFORMH_
 
 #include <windows.h>
-#include "./types.h"
+#include "types.h"
 
-#define internal static
-#define local_persist static
-#define global_variable static
+//  ------------------------------------ TYPES
 
-#define Clamp(value, low, high) ((value) < (high)) ? (((value) > (low)) ? (value) : (low)) : (high)
+// todo: replace regular width and height by this:
+struct screen_size {
+    int width;
+    int height;
+}
 
-// LOCAL DEPENDENCIES : TYPES.H
+struct current_screen_size {
+    int currentWidth;
+    int currentHeight;
+}
 
-//  ------------------------------------ GENERAL ENTITIES
+//  ------------------------------------ OS RELATED FUNCTIONS
 
-void ReadFullFile(char *Location, completeFile *File){
-	HANDLE rawFile = CreateFileA(Location, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	
-	//check the handle
-    if (rawFile == INVALID_HANDLE_VALUE)
+static LRESULT CALLBACK WindowProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+    if(ImGui_ImplWin32_WndProcHandler(wnd, msg, wparam, lparam))
     {
-		OutputDebugStringA("FILE OPENING ERROR\n");
-    } else {
-		LARGE_INTEGER fileSize;
-	
-		GetFileSizeEx(rawFile,
-		  &fileSize
-		);
-	
-		uint32 fileSize32 = SafeTruncateUInt64(fileSize.QuadPart);
-		File->memory = VirtualAlloc(0, fileSize32, MEM_COMMIT, PAGE_READWRITE);
-		ReadFile(rawFile, File->memory, fileSize32, NULL, NULL);
-		File->size = fileSize32;
-	}
+        return true;
+    }
+    switch (msg)
+    {
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        return 0;
+    }
+    
+    return DefWindowProcW(wnd, msg, wparam, lparam);
+}
 
+HWND PLATFORM_CREATE_WINDOW(HINSTANCE instance, int width, int height) {
+    // register window class to have custom WindowProc callback
+    WNDCLASSEXW wc =
+    {
+        .cbSize = sizeof(wc),
+        .lpfnWndProc = WindowProc,
+        .hInstance = instance,
+        .hIcon = LoadIcon(NULL, IDI_APPLICATION),
+        .hCursor = LoadCursor(NULL, IDC_ARROW),
+        .lpszClassName = L"d3d11_window_class",
+    };
+    ATOM atom = RegisterClassExW(&wc);
+    Assert(atom && "Failed to register window class");
+
+    // window properties - width, height and style
+
+    // WS_EX_NOREDIRECTIONBITMAP flag here is needed to fix ugly bug with Windows 10
+    // when window is resized and DXGI swap chain uses FLIP presentation model
+    // DO NOT use it if you choose to use non-FLIP presentation model
+    // read about the bug here: https://stackoverflow.com/q/63096226 and here: https://stackoverflow.com/q/53000291
+    DWORD exstyle = WS_EX_APPWINDOW | WS_EX_NOREDIRECTIONBITMAP;
+    DWORD style = WS_OVERLAPPEDWINDOW;
+
+    // uncomment in case you want fixed size window
+    //style &= ~WS_THICKFRAME & ~WS_MAXIMIZEBOX;
+    //RECT rect = { 0, 0, 1280, 720 };
+    //AdjustWindowRectEx(&rect, style, FALSE, exstyle);
+    //width = rect.right - rect.left;
+    //height = rect.bottom - rect.top;
+
+    // create window
+    HWND window = CreateWindowExW(
+        exstyle, wc.lpszClassName, L"D3D11 Window", style,
+        CW_USEDEFAULT, CW_USEDEFAULT, width, height,
+        NULL, NULL, wc.hInstance, NULL);
+    Assert(window && "Failed to create window");
+
+    return window;
 }
 
 #endif /* _PLATFORMH_ */
