@@ -9,20 +9,19 @@
 #define _FILEH_
 
 #include <windows.h>
-#include "./types.h"
+#include "../types.h"
 
 #define internal static
 #define local_persist static
 #define global_variable static
 
-#define Clamp(value, low, high) ((value) < (high)) ? (((value) > (low)) ? (value) : (low)) : (high)
 
 // LOCAL DEPENDENCIES : TYPES.H
 
 //  ------------------------------------ STRUCTS
 
 typedef struct complete_file {
-	int32 size;
+	i32 size;
 	void *memory;
 } completeFile;
 
@@ -32,24 +31,24 @@ typedef struct file_bitmap_header
 {
     // header: 14 bytes
     char formatID[2];
-    uint32 size;
-    uint32 pad;
-    uint32 offset; // start of the data array
+    ui32 size;
+    ui32 pad;
+    ui32 offset; // start of the data array
 } file_bitmap_header;
 
 typedef struct file_bitmap_info_header
 {
-    uint32 headerSize;
-    int32 width;
-    int32 height;
-    uint16 numPlanes;
-    uint16 bpp; // bits per pixel
+    ui32 headerSize;
+    i32 width;
+    i32 height;
+    ui16 numPlanes;
+    ui16 bpp; // bits per pixel
     char compression[4];
-    uint32 imageSize;
-    int32 hres;
-    int32 vres;
-    uint32 numColors; // number of colors in the palette
-    uint32 numImpColors; // number of important colors used
+    ui32 imageSize;
+    i32 hres;
+    i32 vres;
+    ui32 numColors; // number of colors in the palette
+    ui32 numImpColors; // number of important colors used
 } file_bitmap_info_header;
 #pragma pack(pop)
 
@@ -78,7 +77,7 @@ void FILE_FULLREAD(char *Location, complete_file *file){
 		  &fileSize
 		);
 	
-		uint32 fileSize32 = SafeTruncateUInt64(fileSize.QuadPart);
+		ui32 fileSize32 = SafeTruncateUInt64(fileSize.QuadPart);
 		file->memory = VirtualAlloc(0, fileSize32, MEM_COMMIT, PAGE_READWRITE);
 		ReadFile(rawFile, file->memory, fileSize32, NULL, NULL);
 		file->size = fileSize32;

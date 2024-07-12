@@ -7,32 +7,11 @@
 
 #define COBJMACROS
 #define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-#include <d3d11.h>
-#include <dxgi1_3.h>
-#include <d3dcompiler.h>
-#include <dxgidebug.h>
-
 #define _USE_MATH_DEFINES
 #define IMGUI_DEFINE_MATH_OPERATORS
 #define IMGUI_IMPLEMENTATION
-
-#include <math.h>
-#include <string.h>
-#include <stddef.h>
-
-// imgui
-#include "imgui.h"
-#include "imgui_impl_win32.h"
-#include "imgui_impl_dx11.h"
-
-#pragma comment (lib, "gdi32")
-#pragma comment (lib, "user32")
-#pragma comment (lib, "dxguid")
-#pragma comment (lib, "dxgi")
-#pragma comment (lib, "d3d11")
-#pragma comment (lib, "d3dcompiler")
-
+#define RAYMATH_IMPLEMENTATION
+#define AssertHR(hr) Assert(SUCCEEDED(hr))
 
 // macros
 #define STR2(x) #x
@@ -41,18 +20,37 @@
 #define local_persist static
 #define global_variable static
 
+#pragma comment (lib, "gdi32")
+#pragma comment (lib, "user32")
+#pragma comment (lib, "dxguid")
+#pragma comment (lib, "dxgi")
+#pragma comment (lib, "d3d11")
+#pragma comment (lib, "d3dcompiler")
+
+#include <windows.h>
+#include <d3d11.h>
+#include <dxgi1_3.h>
+#include <d3dcompiler.h>
+#include <dxgidebug.h>
+
+#include <math.h>
+#include <string.h>
+#include <stddef.h>
+#include <stdint.h>
+
+// libraries
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_dx11.h"
+#include "raymath.h"
+
 // my stuff 
-#include "render.h"
-#include "platform.h"
 #include "types.h"
+#include "game/game.h"
+#include "render/render.h"
+#include "platform/platform.h"
 
 enum GameState { menu, pause, game };
-
-static void FatalError(const char* message)
-{
-    MessageBoxA(NULL, message, "Error", MB_ICONEXCLAMATION);
-    ExitProcess(0);
-}
 
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, int cmdshow)
 {
@@ -85,6 +83,10 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 	
 	game_camera Camera = {0};
 	
+	viewport_size viewport = {
+		.height = width,
+		.width = height,
+	};
 	
 	//  ------------------------------------------- frame loop
 
@@ -106,7 +108,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 		// RENDERING (DX)
 
         // resize swap chain if needed
-		RENDER_RESIZE_SWAP_CHAIN(window, currentWidth, currentHeight, &rContext);
+		RENDER_RESIZE_SWAP_CHAIN(window, currentWidth, currentHeight, &viewport, &rContext);
 
         // can render only if window size is non-zero - we must have backbuffer & RenderTarget view created
         if (rContext.rtView)

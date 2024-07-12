@@ -10,6 +10,7 @@
 
 #define COBJMACROS
 #define WIN32_LEAN_AND_MEAN
+
 #include <Windows.h>
 #include <d3d11.h>
 #include <dxgi1_3.h>
@@ -38,9 +39,10 @@
 #include "imgui_widgets.cpp"
 
 // custom libs
-#include "platform.h"
-#include "types.h"
-#include "file.h"
+#include "../types.h"
+#include "../platform/platform.h"
+#include "../platform/file.h"
+
 
 
 // replace this with your favorite Assert() implementation
@@ -159,7 +161,7 @@ void RENDER_INIT_IMMUTABLE_uBuffer(render_context *rContext){
 	// angle = fmodf(angle, 2.0f * (float)M_PI);
 
 	// float aspect = (float)height / width;
-	float matrix[16] =
+	mx matrix =
 	{
 		1, 0, 0, 0,
 		0, 1, 0, 0,
@@ -175,24 +177,24 @@ void RENDER_INIT_IMMUTABLE_uBuffer(render_context *rContext){
 		.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
 	};
 
-	D3D11_SUBRESOURCE_DATA initial = { .pSysMem = matrix };
+	D3D11_SUBRESOURCE_DATA initial = { .pSysMem = &matrix };
     rContext->device->CreateBuffer(&desc, NULL, &rContext->ubuffer);
 	
 	D3D11_MAPPED_SUBRESOURCE mapped;
 	
 	rContext->context->Map(rContext->ubuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
-	memcpy(mapped.pData, matrix, sizeof(matrix));
+	memcpy(mapped.pData, &matrix, sizeof(matrix));
 	rContext->context->Unmap(rContext->ubuffer, 0);
 }
 
 // camera projection
-matrix game_OrthographicProjection(game_camera* camera, float width, float height)
+mx game_OrthographicProjection(game_camera* camera, float width, float height)
 {
     float L = camera->position.x - width / 2.f;
     float R = camera->position.x + width / 2.f;
     float T = camera->position.y + height / 2.f;
     float B = camera->position.y - height / 2.f;
-    matrix res = 
+    mx res = 
     {
         2.0f/(R-L),   0.0f,           0.0f,       0.0f,
         0.0f,         2.0f/(T-B),     0.0f,       0.0f,
@@ -257,18 +259,18 @@ void RENDER_INIT_DYNAMIC_VertexBuffer(render_context *rContext, int bufferSize) 
 
 // --------------------------------- RENDER_RESIZE_SWAP_CHAIN
 
-void RENDER_RESIZE_SWAP_CHAIN(HWND window, DWORD currentWidth, DWORD currentHeight, render_context* rContext) {
+void RENDER_RESIZE_SWAP_CHAIN(HWND window, DWORD currentWidth, DWORD currentHeight, viewport_size* viewport, render_context* rContext) {
+	
+		HRESULT hr;
 	
         // get current size for window client area
         RECT rect;
         GetClientRect(window, &rect);
 		
-		viewport_size viewport = {
-			.height = rect.bottom - rect.top,
-			.width = rect.right - rect.left,
-		};
+		viewport->height = rect.bottom - rect.top;
+		viewport->width = rect.right - rect.left;
 		
-	    if (rContext->rtView == NULL || viewport.width != currentWidth || viewport.height != currentHeight) {
+	    if (rContext->rtView == NULL || viewport->width != currentWidth || viewport->height != currentHeight) {
             if (rContext->rtView)
             {
                 // release old swap chain buffers
@@ -279,9 +281,9 @@ void RENDER_RESIZE_SWAP_CHAIN(HWND window, DWORD currentWidth, DWORD currentHeig
             }
 
             // resize to new size for non-zero size
-            if (width != 0 && height != 0)
+            if (currentWidth != 0 && currentHeight != 0)
             {
-                hr = rContext->swapChain->ResizeBuffers(0, viewport.width, viewport.height, DXGI_FORMAT_UNKNOWN, 0);
+                hr = rContext->swapChain->ResizeBuffers(0, viewport->width, viewport->height, DXGI_FORMAT_UNKNOWN, 0);
                 if (FAILED(hr))
                 {
                     FatalError("Failed to resize swap chain!");
@@ -290,13 +292,13 @@ void RENDER_RESIZE_SWAP_CHAIN(HWND window, DWORD currentWidth, DWORD currentHeig
                 // create RenderTarget view for new backbuffer texture
                 ID3D11Texture2D* backbuffer;
                 rContext->swapChain->GetBuffer(0, IID_ID3D11Texture2D, (void**)&backbuffer);
-                rContext->device->CreateRenderTargetView((ID3D11Resource*)backbuffer, NULL, &rContext.rtView);
+                rContext->device->CreateRenderTargetView((ID3D11Resource*)backbuffer, NULL, &rContext->rtView);
                 backbuffer->Release();
 
                 D3D11_TEXTURE2D_DESC depthDesc = 
                 {
-                    .Width = (ui32)viewport.width,
-                    .Height = (ui32)viewport.height,
+                    .Width = (ui32)viewport->width,
+                    .Height = (ui32)viewport->height,
                     .MipLevels = 1,
                     .ArraySize = 1,
                     .Format = DXGI_FORMAT_D32_FLOAT, // or use DXGI_FORMAT_D32_FLOAT_S8X24_UINT if you need stencil
@@ -308,12 +310,12 @@ void RENDER_RESIZE_SWAP_CHAIN(HWND window, DWORD currentWidth, DWORD currentHeig
                 // create new depth stencil texture & DepthStencil view
                 ID3D11Texture2D* depth;
                 rContext->device->CreateTexture2D(&depthDesc, NULL, &depth);
-                rContext->device->CreateDepthStencilView((ID3D11Resource*)depth, NULL, &rContext.dsView);
+                rContext->device->CreateDepthStencilView((ID3D11Resource*)depth, NULL, &rContext->dsView);
                 depth->Release();
             }
 
-            currentWidth = viewport.width;
-            currentHeight = viewport.height;
+            currentWidth = viewport->width;
+            currentHeight = viewport->height;
         }
 }
 

@@ -17,14 +17,20 @@
 struct screen_size {
     int width;
     int height;
-}
+};
 
 struct current_screen_size {
     int currentWidth;
     int currentHeight;
-}
+};
 
 //  ------------------------------------ OS RELATED FUNCTIONS
+
+static void FatalError(const char* message)
+{
+    MessageBoxA(NULL, message, "Error", MB_ICONEXCLAMATION);
+    ExitProcess(0);
+}
 
 static LRESULT CALLBACK WindowProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {

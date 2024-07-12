@@ -6,11 +6,13 @@
 #ifndef _TYPESH_
 #define _TYPESH_
 
-#include <windows.h>
-
 #define internal static
 #define local_persist static
 #define global_variable static
+#define RAYMATH_IMPLEMENTATION
+
+#include <windows.h>
+#include "raymath.h"
 
 //  ----------------------------------- GENERAL
 
@@ -26,12 +28,14 @@ typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
 
+typedef float f32;
+typedef double f64;
+
 typedef Vector2 v2;
 typedef Vector3 v3;
 typedef Vector4 v4;
 typedef Matrix mx;
 
-typedef int64_t i64;
 
 //  ----------------------------------- NUMBERS AND MEMORY
 
@@ -40,24 +44,19 @@ typedef int64_t i64;
     *(int *)0 = 0;                                                             \
 }
 
-uint32 SafeTruncateUInt64(uint64 value){
+ui32 SafeTruncateUInt64(ui64 value){
   Assert(value <= 0xFFFFFFFF);
-  uint32 result = (uint32)value;
+  ui32 result = (ui32)value;
   return result;
 }
-
-typedef struct floatPOINT{
-	float x;
-	float y;
-} floatPOINT;
 
 //  ----------------------------------- PLATFORM
 
 
-typedef struct file_bitmap {
-	file_bitmap_header *bitmapHeader;
-	file_bitmap_info_header *bitmapInfoHeader;
-} file_bitmap;
+// typedef struct file_bitmap {
+	// file_bitmap_header *bitmapHeader;
+	// file_bitmap_info_header *bitmapInfoHeader;
+// } file_bitmap;
 
 // ----------------------------------- GAME LOGIC
 

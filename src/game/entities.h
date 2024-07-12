@@ -1,5 +1,6 @@
 #include "../types.h"
 
+
 struct Entity {
 	float x;
 	float y;
