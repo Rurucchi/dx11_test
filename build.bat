@@ -8,4 +8,4 @@
 
 IF NOT EXIST %OUT_DIR%\ MKDIR %OUT_DIR% 
 
-cl -DNDEBUG=1 -Zi %ARGS% %INCLUDES% %SOURCE% /Fe%OUT_DIR%/%OUT_EXE%.exe /Fo%OUT_DIR%/ /link %LIBS% 
+cl -Zi %ARGS% %INCLUDES% %SOURCE% /Fe%OUT_DIR%/%OUT_EXE%.exe /Fo%OUT_DIR%/ /link %LIBS% 

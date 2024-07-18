@@ -57,13 +57,13 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 	HRESULT hr;
 	
 	// init window handle (and size)
-    int width = CW_USEDEFAULT;
-    int height = CW_USEDEFAULT;
+    ui32 width = CW_USEDEFAULT;
+    ui32 height = CW_USEDEFAULT;
 	HWND window = PLATFORM_CREATE_WINDOW(instance, width, height);
 
     
 	// Init D3D11 + context
-	render_context rContext;
+	render_context rContext = {0};
 	hr = RENDER_INIT_DX(window, &rContext);
 
 
@@ -73,19 +73,15 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
     LARGE_INTEGER freq, c1;
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&c1);
-
-    float angle = 0;
-    DWORD currentWidth = 0;
-    DWORD currentHeight = 0;
 	
 	IMGUI_INIT(window, rContext);
 	
 	
 	game_camera Camera = {0};
 	
-	viewport_size viewport = {
-		.height = width,
-		.width = height,
+	viewport_size windowSize = {
+		.height = 0,
+		.width = 0,
 	};
 	
 	//  ------------------------------------------- frame loop
@@ -108,7 +104,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 		// RENDERING (DX)
 
         // resize swap chain if needed
-		RENDER_RESIZE_SWAP_CHAIN(window, currentWidth, currentHeight, &viewport, &rContext);
+		RENDER_RESIZE_SWAP_CHAIN(window, &windowSize, &rContext);
 
         // can render only if window size is non-zero - we must have backbuffer & RenderTarget view created
         if (rContext.rtView)
@@ -126,6 +122,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
             rContext.context->ClearRenderTargetView(rContext.rtView, color);
             rContext.context->ClearDepthStencilView(rContext.dsView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.f, 0);
 
+			RENDER_EXEC_PIPELINE(&rContext, &windowSize);
 			
 			// ---------------------------- add stuff to render
 			quad_mesh quad1 = {
@@ -135,7 +132,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 				.orientation = 0,
 			};
 			
-			RENDER_EXEC_PIPELINE(&rContext, &viewport);
+				
 
             // draw vertices
             rContext.context->Draw(rContext.VertexCount, 0);
@@ -156,11 +153,16 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 
 			ImGui::Render();
 			ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+			
+		
         }
 
         // change to FALSE to disable vsync
         BOOL vsync = TRUE;
         hr = rContext.swapChain->Present(vsync ? 1 : 0, 0);
+		
+		hr = rContext.device->GetDeviceRemovedReason();
+		
         if (hr == DXGI_STATUS_OCCLUDED)
         {
             // window is minimized, cannot vsync - instead sleep a bit
@@ -168,7 +170,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
             {
                 Sleep(10);
             }
-        }
+        }	
         else if (FAILED(hr))
         {
             FatalError("Failed to present swap chain! Device lost?");

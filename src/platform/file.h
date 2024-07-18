@@ -21,7 +21,7 @@
 //  ------------------------------------ STRUCTS
 
 typedef struct complete_file {
-	i32 size;
+	ui32 size;
 	void *memory;
 } completeFile;
 
@@ -64,7 +64,7 @@ typedef struct texture {
 //  ------------------------------------ FILE RELATED FUNCTIONS
 
 void FILE_FULLREAD(char *Location, complete_file *file){
-	HANDLE rawFile = CreateFileA(Location, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE rawFile = CreateFileA(Location, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 	
 	//check the handle
     if (rawFile == INVALID_HANDLE_VALUE)
@@ -78,7 +78,7 @@ void FILE_FULLREAD(char *Location, complete_file *file){
 		);
 	
 		ui32 fileSize32 = SafeTruncateUInt64(fileSize.QuadPart);
-		file->memory = VirtualAlloc(0, fileSize32, MEM_COMMIT, PAGE_READWRITE);
+		file->memory = VirtualAlloc(0, fileSize32, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 		ReadFile(rawFile, file->memory, fileSize32, NULL, NULL);
 		file->size = fileSize32;
 	}

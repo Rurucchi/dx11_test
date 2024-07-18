@@ -78,8 +78,8 @@ struct quad_mesh {
 };
 
 struct viewport_size {
-	int height;
-	int width;
+	ui32 height;
+	ui32 width;
 };
 
 // ----- api stuff
@@ -206,40 +206,42 @@ mx game_OrthographicProjection(game_camera* camera, float width, float height)
 }
 
 void RENDER_EXEC_PIPELINE(render_context* rContext, viewport_size* vpSize){
-	        D3D11_VIEWPORT viewport =
-            {
-                .TopLeftX = 0,
-                .TopLeftY = 0,
-                .Width = (FLOAT)vpSize->width,
-                .Height = (FLOAT)vpSize->height,
-                .MinDepth = 0,
-                .MaxDepth = 1,
-            };
-	 
-            // Input Assembler
-            rContext->context->IASetInputLayout(rContext->layout);
-            rContext->context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-            UINT stride = sizeof(struct vertex);
-            UINT offset = 0;
-			rContext->context->IASetVertexBuffers(0, 1, &rContext->vbuffer, &stride, &offset);
+	
 
-            // Vertex Shader
-            rContext->context->VSSetConstantBuffers(0, 1, &rContext->ubuffer);
-            rContext->context->VSSetShader(rContext->vshader, NULL, 0);
+	D3D11_VIEWPORT viewport =
+	{
+		.TopLeftX = 0,
+		.TopLeftY = 0,
+		.Width = (FLOAT)vpSize->width,
+		.Height = (FLOAT)vpSize->height,
+		.MinDepth = 0,
+		.MaxDepth = 1,
+	};
 
-            // Rasterizer Stage
-            rContext->context->RSSetViewports(1, &viewport);
-            rContext->context->RSSetState(rContext->rasterizerState);
+	// Input Assembler
+	rContext->context->IASetInputLayout(rContext->layout);
+	rContext->context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	UINT stride = sizeof(struct vertex);
+	UINT offset = 0;
+	rContext->context->IASetVertexBuffers(0, 1, &rContext->vbuffer, &stride, &offset);
 
-            // Pixel Shader
-            rContext->context->PSSetSamplers(0, 1, &rContext->sampler);
-            rContext->context->PSSetShaderResources(0, 1, &rContext->textureView);
-            rContext->context->PSSetShader(rContext->pshader, NULL, 0);
+	// Vertex Shader
+	rContext->context->VSSetConstantBuffers(0, 1, &rContext->ubuffer);
+	rContext->context->VSSetShader(rContext->vshader, NULL, 0);
 
-            // Output Merger
-			rContext->context->OMSetBlendState(rContext->blendState, NULL, ~0U);
-            rContext->context->OMSetDepthStencilState(rContext->depthState, 0);
-            rContext->context->OMSetRenderTargets(1, &rContext->rtView, rContext->dsView);	
+	// Rasterizer Stage
+	rContext->context->RSSetViewports(1, &viewport);
+	rContext->context->RSSetState(rContext->rasterizerState);
+
+	// Pixel Shader
+	rContext->context->PSSetSamplers(0, 1, &rContext->sampler);
+	rContext->context->PSSetShaderResources(0, 1, &rContext->textureView);
+	rContext->context->PSSetShader(rContext->pshader, NULL, 0);
+
+	// Output Merger
+	rContext->context->OMSetBlendState(rContext->blendState, NULL, ~0U);
+	rContext->context->OMSetDepthStencilState(rContext->depthState, 0);
+	rContext->context->OMSetRenderTargets(1, &rContext->rtView, rContext->dsView);	
 }
 
 // --------------------------------- RENDER_INIT
@@ -259,7 +261,7 @@ void RENDER_INIT_DYNAMIC_VertexBuffer(render_context *rContext, int bufferSize) 
 
 // --------------------------------- RENDER_RESIZE_SWAP_CHAIN
 
-void RENDER_RESIZE_SWAP_CHAIN(HWND window, DWORD currentWidth, DWORD currentHeight, viewport_size* viewport, render_context* rContext) {
+void RENDER_RESIZE_SWAP_CHAIN(HWND window, viewport_size* windowSize, render_context* rContext) {
 	
 		HRESULT hr;
 	
@@ -267,10 +269,13 @@ void RENDER_RESIZE_SWAP_CHAIN(HWND window, DWORD currentWidth, DWORD currentHeig
         RECT rect;
         GetClientRect(window, &rect);
 		
-		viewport->height = rect.bottom - rect.top;
-		viewport->width = rect.right - rect.left;
+		viewport_size newWindowSize = {
+			(ui32)rect.bottom - rect.top << 0,
+			(ui32)rect.right - rect.left << 0,
+		};
 		
-	    if (rContext->rtView == NULL || viewport->width != currentWidth || viewport->height != currentHeight) {
+		
+	    if (rContext->rtView == NULL || newWindowSize.width != windowSize->width || newWindowSize.height != windowSize->height) {
             if (rContext->rtView)
             {
                 // release old swap chain buffers
@@ -281,9 +286,9 @@ void RENDER_RESIZE_SWAP_CHAIN(HWND window, DWORD currentWidth, DWORD currentHeig
             }
 
             // resize to new size for non-zero size
-            if (currentWidth != 0 && currentHeight != 0)
+            if (newWindowSize.width != 0 && newWindowSize.height != 0)
             {
-                hr = rContext->swapChain->ResizeBuffers(0, viewport->width, viewport->height, DXGI_FORMAT_UNKNOWN, 0);
+                hr = rContext->swapChain->ResizeBuffers(0, newWindowSize.width, newWindowSize.height, DXGI_FORMAT_UNKNOWN, 0);
                 if (FAILED(hr))
                 {
                     FatalError("Failed to resize swap chain!");
@@ -291,14 +296,15 @@ void RENDER_RESIZE_SWAP_CHAIN(HWND window, DWORD currentWidth, DWORD currentHeig
 
                 // create RenderTarget view for new backbuffer texture
                 ID3D11Texture2D* backbuffer;
-                rContext->swapChain->GetBuffer(0, IID_ID3D11Texture2D, (void**)&backbuffer);
-                rContext->device->CreateRenderTargetView((ID3D11Resource*)backbuffer, NULL, &rContext->rtView);
+                hr = rContext->swapChain->GetBuffer(0, IID_ID3D11Texture2D, (void**)&backbuffer);
+				// rContext->swapChain->GetBuffer(0, IID_PPV_ARGS(&backbuffer));
+                hr = rContext->device->CreateRenderTargetView(backbuffer, NULL, &rContext->rtView);
                 backbuffer->Release();
 
                 D3D11_TEXTURE2D_DESC depthDesc = 
                 {
-                    .Width = (ui32)viewport->width,
-                    .Height = (ui32)viewport->height,
+                    .Width = newWindowSize.width,
+                    .Height = newWindowSize.height,
                     .MipLevels = 1,
                     .ArraySize = 1,
                     .Format = DXGI_FORMAT_D32_FLOAT, // or use DXGI_FORMAT_D32_FLOAT_S8X24_UINT if you need stencil
@@ -310,12 +316,12 @@ void RENDER_RESIZE_SWAP_CHAIN(HWND window, DWORD currentWidth, DWORD currentHeig
                 // create new depth stencil texture & DepthStencil view
                 ID3D11Texture2D* depth;
                 rContext->device->CreateTexture2D(&depthDesc, NULL, &depth);
-                rContext->device->CreateDepthStencilView((ID3D11Resource*)depth, NULL, &rContext->dsView);
+                rContext->device->CreateDepthStencilView(depth, NULL, &rContext->dsView);
                 depth->Release();
             }
 
-            currentWidth = viewport->width;
-            currentHeight = viewport->height;
+			windowSize->width = newWindowSize.width;
+			windowSize->height = newWindowSize.height;
         }
 }
 
@@ -330,7 +336,7 @@ HRESULT RENDER_INIT_DX(HWND window, render_context* rContext) {
     // create D3D11 device & context
     {
         UINT flags = 0;
-	#ifndef NDEBUG
+	#ifdef NDEBUG
 		// this enables VERY USEFUL debug messages in debugger output
 		flags |= D3D11_CREATE_DEVICE_DEBUG;
 	#endif
@@ -344,7 +350,7 @@ HRESULT RENDER_INIT_DX(HWND window, render_context* rContext) {
         AssertHR(hr);
     }
 
-	#ifndef NDEBUG
+	#ifdef NDEBUG
 	
     // for debug builds enable VERY USEFUL debug break on API errors
     {
@@ -352,17 +358,17 @@ HRESULT RENDER_INIT_DX(HWND window, render_context* rContext) {
         rContext->device->QueryInterface(IID_ID3D11InfoQueue, (void**)&info);
         info->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_CORRUPTION, TRUE);
         info->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_ERROR, TRUE);
-        info->Release(info);
+        info->Release();
     }
 
     // enable debug break for DXGI too
     {
         IDXGIInfoQueue* dxgiInfo;
-        hr = DXGIGetDebugInterface1(0, &IID_IDXGIInfoQueue, (void**)&dxgiInfo);
+        hr = DXGIGetDebugInterface1(0, IID_IDXGIInfoQueue, (void**)&dxgiInfo);
         AssertHR(hr);
         dxgiInfo->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, TRUE);
-        dxgiInfo->SetBreakOnSeverity(dxgiInfo, DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, TRUE);
-        dxgiInfo->Release(dxgiInfo);
+        dxgiInfo->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, TRUE);
+        dxgiInfo->Release();
     }
 
     // after this there's no need to check for any errors on device functions manually
@@ -426,6 +432,7 @@ HRESULT RENDER_INIT_DX(HWND window, render_context* rContext) {
         factory->Release();
         dxgiAdapter->Release();
         dxgiDevice->Release();
+		
     }
 
 
@@ -442,8 +449,8 @@ HRESULT RENDER_INIT_DX(HWND window, render_context* rContext) {
         };
 
 
-		char vsLocation[] = "triangle.vs";
-		char psLocation[] = "triangle.ps";
+		char vsLocation[] = "triangle.vs.fxc";
+		char psLocation[] = "triangle.ps.fxc";
 	
 		complete_file vblob = {0};
 		complete_file pblob = {0};
@@ -454,9 +461,9 @@ HRESULT RENDER_INIT_DX(HWND window, render_context* rContext) {
 		
 		// this is where we send shaders to the GPU
 		
-        rContext->device->CreateVertexShader(vblob.memory, vblob.size, NULL, &rContext->vshader);
-        rContext->device->CreatePixelShader(pblob.memory, pblob.size, NULL, &rContext->pshader);
-        rContext->device->CreateInputLayout(desc, ARRAYSIZE(desc), vblob.memory, vblob.size, &rContext->layout);
+        hr = rContext->device->CreateVertexShader(vblob.memory, vblob.size, NULL, &rContext->vshader);
+        hr = rContext->device->CreatePixelShader(pblob.memory, pblob.size, NULL, &rContext->pshader);
+        hr = rContext->device->CreateInputLayout(desc, ARRAYSIZE(desc), vblob.memory, vblob.size, &rContext->layout);
 
 		FILE_FULLFREE(&vblob);
 		FILE_FULLFREE(&pblob);
