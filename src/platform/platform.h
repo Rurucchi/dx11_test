@@ -9,6 +9,7 @@
 #define _PLATFORMH_
 
 #include <windows.h>
+#include "../render/ui.h"
 #include "types.h"
 
 //  ------------------------------------ TYPES
@@ -47,6 +48,8 @@ static LRESULT CALLBACK WindowProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lpa
     
     return DefWindowProcW(wnd, msg, wparam, lparam);
 }
+
+
 
 HWND PLATFORM_CREATE_WINDOW(HINSTANCE instance, int width, int height) {
     // register window class to have custom WindowProc callback
@@ -87,5 +90,17 @@ HWND PLATFORM_CREATE_WINDOW(HINSTANCE instance, int width, int height) {
 
     return window;
 }
+
+viewport_size platform_getWindowSize(HWND window) {
+	RECT rect;
+	GetClientRect(window, &rect);
+	
+	viewport_size newWindowSize = {
+	(ui32)rect.bottom - rect.top << 0,
+	(ui32)rect.right - rect.left << 0,
+	};
+	
+	return newWindowSize;
+};
 
 #endif /* _PLATFORMH_ */

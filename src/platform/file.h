@@ -9,6 +9,7 @@
 #define _FILEH_
 
 #include <windows.h>
+#include <wincodec.h>
 #include "../types.h"
 
 #define internal static
@@ -58,7 +59,6 @@ typedef struct texture {
 	int memorySize;
 	int width;
 	int height;
-	int bytesPerPixel;
 } texture;
 
 //  ------------------------------------ FILE RELATED FUNCTIONS
@@ -93,5 +93,31 @@ void FILE_FULLFREE(complete_file *file){
 	  MEM_RELEASE
 	);
 }
+
+
+// todo: finish this
+// void decode_png() {
+	// HRESULT hr;
+	
+	// Create a decoder
+	// IWICBitmapDecoder *pDecoder = NULL;
+   
+		// hr = m_pIWICFactory->CreateDecoderFromFilename(
+        // szFileName,                      // Image to be decoded
+        // NULL,                            // Do not prefer a particular vendor
+        // GENERIC_READ,                    // Desired read access to the file
+        // WICDecodeMetadataCacheOnDemand,  // Cache metadata when needed
+        // &pDecoder                        // Pointer to the decoder
+        // );
+
+   // Retrieve the first frame of the image from the decoder
+   // IWICBitmapFrameDecode *pFrame = NULL;
+
+   // if (SUCCEEDED(hr))
+   // {
+       // hr = pDecoder->GetFrame(0, &pFrame);
+   // }
+	
+// }
 
 #endif /* _FILEH_ */

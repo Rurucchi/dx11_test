@@ -13,6 +13,7 @@ struct PS_INPUT {
 // b0 = constant buffer bound to slot 0
 cbuffer cbuffer0 : register(b0)	{
 	float4x4 uTransform;
+	float4x4 pos;
 }
 
 // s0 = sampler bound to slot 0
@@ -23,7 +24,10 @@ Texture2D<float4> texture0 : register(t0);
 
 PS_INPUT vs(VS_INPUT input) {
 	PS_INPUT output;
+	
+	// rotation + pos transform
     output.pos = mul(uTransform, float4(input.pos, 0, 1));
+	
 	output.uv = input.uv;
     output.color = float4(input.color, 1);
     return output;

@@ -47,7 +47,8 @@
 // my stuff 
 #include "types.h"
 #include "game/game.h"
-#include "render/render.h"
+#include "render/ui.h"
+#include "render/dx11.h"
 #include "platform/platform.h"
 
 enum GameState { menu, pause, game };
@@ -77,17 +78,25 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 	IMGUI_INIT(window, rContext);
 	
 	
-	game_camera Camera = {0};
+	game_camera camera = {0};
 	
 	viewport_size windowSize = {
 		.height = 0,
 		.width = 0,
 	};
 	
+	// playfield aspect ratio is 4:3
+	viewport_size playfield {
+		.height = 384,
+		.width = 512,
+	};
+	
 	//  ------------------------------------------- frame loop
 
 	for (;;)
     {
+
+		
         // process all incoming Windows messages
         MSG msg;
         if (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE))
@@ -105,6 +114,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 
         // resize swap chain if needed
 		RENDER_RESIZE_SWAP_CHAIN(window, &windowSize, &rContext);
+		
 
         // can render only if window size is non-zero - we must have backbuffer & RenderTarget view created
         if (rContext.rtView)
@@ -122,20 +132,20 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
             rContext.context->ClearRenderTargetView(rContext.rtView, color);
             rContext.context->ClearDepthStencilView(rContext.dsView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.f, 0);
 
-			RENDER_EXEC_PIPELINE(&rContext, &windowSize);
+			RENDER_INIT_PIPELINE(&rContext, &windowSize);
 			
 			// ---------------------------- add stuff to render
 			quad_mesh quad1 = {
 				.x = 0,
 				.y = 0,
-				.size = .5f,
-				.orientation = 0,
+				.width = 200,
+				.height = 200,
 			};
 			
 				
 
             // draw vertices
-            rContext.context->Draw(rContext.VertexCount, 0);
+            rContext.context->Draw(rContext.vCount, 0);
 			
 			// IMGUI RENDER
 			IMGUI_RENDER();
@@ -144,10 +154,10 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 				ImGui::Text("FPS : %f", 1.0f/delta);
 				if(ImGui::Button("button")){
 					ImGui::Text("pressed");
-					RENDER_QUEUE_Quad(&quad1, &rContext);
+					RENDER_QUEUE_quad(&quad1, &rContext);
 					RENDER_UPLOAD_DYNAMIC_VertexQueue(&rContext);
 				}
-				ImGui::Text("Vertex count : %d", rContext.VertexCount);
+				ImGui::Text("Vertex count : %d", rContext.vCount);
 				
 			} ImGui::End();
 
@@ -158,7 +168,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
         }
 
         // change to FALSE to disable vsync
-        BOOL vsync = TRUE;
+        BOOL vsync = FALSE;
         hr = rContext.swapChain->Present(vsync ? 1 : 0, 0);
 		
 		hr = rContext.device->GetDeviceRemovedReason();

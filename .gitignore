@@ -7,3 +7,5 @@ main.obj
 main.pdb
 debug.rdbg
 renderdoc.cap
+assets/
+build/
