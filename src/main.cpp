@@ -5,13 +5,18 @@
 
 // DEPENDENCIES : types.h, render.h, platform.h, file.h
 
+// defines
 #define COBJMACROS
 #define WIN32_LEAN_AND_MEAN
 #define _USE_MATH_DEFINES
 #define IMGUI_DEFINE_MATH_OPERATORS
 #define IMGUI_IMPLEMENTATION
 #define RAYMATH_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+
+// assert
 #define AssertHR(hr) Assert(SUCCEEDED(hr))
+
 
 // macros
 #define STR2(x) #x
@@ -28,6 +33,7 @@
 #pragma comment (lib, "d3dcompiler")
 
 #include <windows.h>
+#include <combaseapi.h>
 #include <d3d11.h>
 #include <dxgi1_3.h>
 #include <d3dcompiler.h>
@@ -43,10 +49,12 @@
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
 #include "raymath.h"
+#include "stb_image.h"
 
 // my stuff 
 #include "types.h"
 #include "game/game.h"
+#include "game/location.h"
 #include "render/ui.h"
 #include "render/dx11.h"
 #include "platform/platform.h"
@@ -56,6 +64,7 @@ enum GameState { menu, pause, game };
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, int cmdshow)
 {
 	HRESULT hr;
+
 	
 	// init window handle (and size)
     ui32 width = CW_USEDEFAULT;
@@ -63,9 +72,11 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 	HWND window = PLATFORM_CREATE_WINDOW(instance, width, height);
 
     
+	game_camera camera = {0};
+	
 	// Init D3D11 + context
 	render_context rContext = {0};
-	hr = RENDER_INIT_DX(window, &rContext);
+	hr = RENDER_INIT_DX(window, &rContext, &camera);
 
 
     // show the window
@@ -78,7 +89,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 	IMGUI_INIT(window, rContext);
 	
 	
-	game_camera camera = {0};
+	
 	
 	viewport_size windowSize = {
 		.height = 0,
@@ -119,6 +130,12 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
         // can render only if window size is non-zero - we must have backbuffer & RenderTarget view created
         if (rContext.rtView)
         {
+			// resize the camera
+			viewport_size vp = platform_getWindowSize(window);
+			render_upload_camera_uBuffer(&rContext, &camera, vp);
+			
+			
+			
             LARGE_INTEGER c2;
             QueryPerformanceCounter(&c2);
             float delta = (float)((double)(c2.QuadPart - c1.QuadPart) / freq.QuadPart);
@@ -138,12 +155,10 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 			quad_mesh quad1 = {
 				.x = 0,
 				.y = 0,
-				.width = 200,
-				.height = 200,
+				.width = 256,
+				.height = 256,
 			};
 			
-				
-
             // draw vertices
             rContext.context->Draw(rContext.vCount, 0);
 			

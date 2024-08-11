@@ -100,13 +100,13 @@ void RENDER_QUEUE_quad(quad_mesh* quadData, render_context* rContext) {
 		c -> texture color; */  
 		
         // first triangle ◥
-        { quadData->x - (quadData->width/2), quadData->y + (quadData->size/2), { 0.f, 1.f }, { 1, 1, 1 } },  // top left (2)
-        { quadData->x + (quadData->size/2), quadData->y + (quadData->size/2), { 1.f,  1.f }, { 1, 1, 1 } },	// top right
-        { quadData->x + (quadData->size/2), quadData->y - (quadData->size/2), { 1.f,  0.f }, { 1, 1, 1 } },  // bottom right (2)
+        { quadData->x - (quadData->width/2.f), quadData->y + (quadData->height/2.f), { 0.f, 1.f }, { 1, 1, 1 } },  // top left (2)
+        { quadData->x + (quadData->width/2.f), quadData->y + (quadData->height/2.f), { 1.f,  1.f }, { 1, 1, 1 } },	// top right
+        { quadData->x + (quadData->width/2.f), quadData->y - (quadData->height/2.f), { 1.f,  0.f }, { 1, 1, 1 } },  // bottom right (2)
         // second triangle ◣
-        { quadData->x - (quadData->size/2), quadData->y + (quadData->size/2), { 0.f, 1.f }, { 1, 1, 1 } },    	// top left (2)
-        { quadData->x - (quadData->size/2), quadData->y - (quadData->size/2), { 0.f, 0.f }, { 1, 1, 1 } }, 		// bottom left
-        { quadData->x + (quadData->size/2), quadData->y - (quadData->size/2), { 1.f,  0.f }, { 1, 1, 1 } },   // bottom right (2)
+        { quadData->x - (quadData->width/2.f), quadData->y + (quadData->height/2.f), { 0.f, 1.f }, { 1, 1, 1 } },    	// top left (2)
+        { quadData->x - (quadData->width/2.f), quadData->y - (quadData->height/2.f), { 0.f, 0.f }, { 1, 1, 1 } }, 		// bottom left
+        { quadData->x + (quadData->width/2.f), quadData->y - (quadData->height/2.f), { 1.f,  0.f }, { 1, 1, 1 } },   // bottom right (2)
     };
 	
     for(int i=0; i<6; i++) {
@@ -129,12 +129,10 @@ void RENDER_UPLOAD_DYNAMIC_VertexQueue(render_context* rContext){
 // --------------------------------- ROTATE OBJECT
 
 
-void render_upload_camera_uBuffer(render_context *rContext, game_camera* camera, float width, float height){
-	// setup 4x4c rotation matrix in uniform
-	// angle += delta * 0.2f * (float)M_PI / 20.0f; // full rotation in 20 seconds
-	// angle = fmodf(angle, 2.0f * (float)M_PI);
-
-	// float aspect = (float)height / width;
+void render_upload_camera_uBuffer(render_context *rContext, game_camera* camera, viewport_size vp){	
+	
+	float width = (float)vp.width;
+	float height = (float)vp.height;
 	
 	mx matrix = game_OrthographicProjection(camera, width, height);
 	
@@ -155,15 +153,6 @@ void render_upload_camera_uBuffer(render_context *rContext, game_camera* camera,
 	memcpy(mapped.pData, &matrix, sizeof(matrix));
 	rContext->context->Unmap(rContext->ubuffer, 0);
 }
-
-void render_transform_ubuffer(render_context* rContext, mx transform[2]) {
-	D3D11_MAPPED_SUBRESOURCE mapped;
-	
-	rContext->context->Map(rContext->ubuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
-	memcpy(mapped.pData, &transform, sizeof(transform));
-	rContext->context->Unmap(rContext->ubuffer, 0);
-}
-
 
 void RENDER_INIT_PIPELINE(render_context* rContext, viewport_size* vpSize){
 	
@@ -289,9 +278,11 @@ void RENDER_RESIZE_SWAP_CHAIN(HWND window, viewport_size* windowSize, render_con
 
 // --------------------------------- RENDER_QUEUE
 
-HRESULT RENDER_INIT_DX(HWND window, render_context* rContext) {
+HRESULT RENDER_INIT_DX(HWND window, render_context* rContext, game_camera* camera) {
 	
 	HRESULT hr;
+	
+	viewport_size vp = platform_getWindowSize(window);
 	
     // create D3D11 device & context
     {
@@ -415,8 +406,8 @@ HRESULT RENDER_INIT_DX(HWND window, render_context* rContext) {
 		complete_file vblob = {0};
 		complete_file pblob = {0};
 		
-		FILE_FULLREAD(vsLocation, &vblob);
-		FILE_FULLREAD(psLocation, &pblob);
+		file_fullread(vsLocation, &vblob);
+		file_fullread(psLocation, &pblob);
 		
 		
 		// this is where we send shaders to the GPU
@@ -425,26 +416,31 @@ HRESULT RENDER_INIT_DX(HWND window, render_context* rContext) {
         hr = rContext->device->CreatePixelShader(pblob.memory, pblob.size, NULL, &rContext->pshader);
         hr = rContext->device->CreateInputLayout(desc, ARRAYSIZE(desc), vblob.memory, vblob.size, &rContext->layout);
 
-		FILE_FULLFREE(&vblob);
-		FILE_FULLFREE(&pblob);
+		file_fullfree(&vblob);
+		file_fullfree(&pblob);
     }
 
     {
         // checkerboard texture, with 50% transparency on black colors
 		
 		// todo: asset pipeline for textures
-        unsigned int pixels[] =
-        {
-            0x80000000, 0xffffffff,
-            0xffffffff, 0x80000000,
-        };
-        UINT width = 2;
-        UINT height = 2;
+		
+		// for testing
+        // unsigned int pixels[] =
+        // {
+            // 0x80000000, 0xffffffff,
+            // 0xffffffff, 0x80000000,
+        // };
+		
+		// open and decode the hitcircle texture
+		char* location = gameObjectLocation;
+		complete_file textureFile = {0};
+		complete_img hitcircle_sprite = file_decodePNG(location, &textureFile);
 
         D3D11_TEXTURE2D_DESC desc =
         {
-            .Width = width,
-            .Height = height,
+            .Width = hitcircle_sprite.x,
+            .Height = hitcircle_sprite.y,
             .MipLevels = 1,
             .ArraySize = 1,
             .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
@@ -455,8 +451,8 @@ HRESULT RENDER_INIT_DX(HWND window, render_context* rContext) {
 
         D3D11_SUBRESOURCE_DATA data =
         {
-            .pSysMem = pixels,
-            .SysMemPitch = width * sizeof(unsigned int),
+            .pSysMem = hitcircle_sprite.memory,
+            .SysMemPitch = hitcircle_sprite.x * hitcircle_sprite.channels_in_file,
         };
 
         ID3D11Texture2D* texture;
@@ -469,7 +465,7 @@ HRESULT RENDER_INIT_DX(HWND window, render_context* rContext) {
     {
         D3D11_SAMPLER_DESC desc =
         {
-            .Filter = D3D11_FILTER_MIN_MAG_MIP_POINT,
+            .Filter = D3D11_FILTER_MIN_MAG_POINT_MIP_LINEAR,
             .AddressU = D3D11_TEXTURE_ADDRESS_CLAMP,
             .AddressV = D3D11_TEXTURE_ADDRESS_CLAMP,
             .AddressW = D3D11_TEXTURE_ADDRESS_CLAMP,
@@ -531,10 +527,11 @@ HRESULT RENDER_INIT_DX(HWND window, render_context* rContext) {
     }
 
 
+
 	// create Dynamic Shader Buffer
     {
 		RENDER_INIT_DYNAMIC_VertexBuffer(rContext, 2048);
-		RENDER_INIT_IMMUTABLE_uBuffer(rContext);
+		render_upload_camera_uBuffer(rContext, camera, vp);
     }
 
     rContext->rtView = NULL;

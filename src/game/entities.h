@@ -1,5 +1,7 @@
 #include "../types.h"
 
+enum hit_object { hit_circle, slider, spinner };
+
 struct approach_circle {
 	ui16 x;
 	ui16 y;

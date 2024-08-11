@@ -10,6 +10,7 @@
 
 #include <windows.h>
 #include "../render/ui.h"
+#include "../render/render.h"
 #include "types.h"
 
 //  ------------------------------------ TYPES
@@ -20,9 +21,9 @@ struct screen_size {
     int height;
 };
 
-struct current_screen_size {
-    int currentWidth;
-    int currentHeight;
+struct viewport_size {
+	ui32 height;
+	ui32 width;
 };
 
 //  ------------------------------------ OS RELATED FUNCTIONS
@@ -87,19 +88,19 @@ HWND PLATFORM_CREATE_WINDOW(HINSTANCE instance, int width, int height) {
         CW_USEDEFAULT, CW_USEDEFAULT, width, height,
         NULL, NULL, wc.hInstance, NULL);
     Assert(window && "Failed to create window");
-
+	
     return window;
 }
 
 viewport_size platform_getWindowSize(HWND window) {
 	RECT rect;
 	GetClientRect(window, &rect);
-	
+		
 	viewport_size newWindowSize = {
 	(ui32)rect.bottom - rect.top << 0,
 	(ui32)rect.right - rect.left << 0,
 	};
-	
+		
 	return newWindowSize;
 };
 

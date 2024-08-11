@@ -14,9 +14,9 @@
 
 struct vertex
 {
-    float position[2];
-    float uv[2];
-    float color[3];
+    f32 position[2];
+    f32 uv[2];
+    f32 color[3];
 };
 
 struct quad_mesh {
@@ -25,11 +25,6 @@ struct quad_mesh {
 	i32 width;
 	i32 height;
 	// float orientation;
-};
-
-struct viewport_size {
-	ui32 height;
-	ui32 width;
 };
 
 // camera projection
@@ -48,13 +43,6 @@ mx game_OrthographicProjection(game_camera* camera, float width, float height)
     };
     
     return res;
-}
-
-// normalized device coordinates
-v3 pixelToNDC(int x, int y, viewport_size windowSize) {
-    float ndc_x = (2.0f * x / windowSize.width) - 1.0f;
-    float ndc_y = 1.0f - (2.0f * y / windowSize.height);
-    return {ndc_x, ndc_y, 0.0f};
 }
 
 #endif /* _RENDERH_ */

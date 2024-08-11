@@ -26,6 +26,13 @@ typedef struct complete_file {
 	void *memory;
 } completeFile;
 
+typedef struct complete_img {
+	ui32 x;
+	ui32 y;
+	ui32 channels_in_file;
+	void *memory;
+} complete_img;
+
 // disable compiler memory alligment
 #pragma pack(push, 1)
 typedef struct file_bitmap_header
@@ -63,8 +70,19 @@ typedef struct texture {
 
 //  ------------------------------------ FILE RELATED FUNCTIONS
 
-void FILE_FULLREAD(char *Location, complete_file *file){
-	HANDLE rawFile = CreateFileA(Location, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+HANDLE file_createHandle(char *location) {
+	HANDLE rawFile = CreateFileA(location, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+	
+	if (rawFile == INVALID_HANDLE_VALUE)
+    {
+		OutputDebugStringA("FILE OPENING ERROR\n");
+	}
+	
+	return rawFile;
+}
+
+void file_fullread(char *location, complete_file *file){
+	HANDLE rawFile = file_createHandle(location);
 	
 	//check the handle
     if (rawFile == INVALID_HANDLE_VALUE)
@@ -85,7 +103,7 @@ void FILE_FULLREAD(char *Location, complete_file *file){
 
 }
 
-void FILE_FULLFREE(complete_file *file){
+void file_fullfree(complete_file *file){
 	// free the memory of the file
 	VirtualFree(
 	  file->memory,
@@ -96,28 +114,18 @@ void FILE_FULLFREE(complete_file *file){
 
 
 // todo: finish this
-// void decode_png() {
-	// HRESULT hr;
+complete_img file_decodePNG(char *location, complete_file *file) {
+	complete_img img = {0};
 	
-	// Create a decoder
-	// IWICBitmapDecoder *pDecoder = NULL;
-   
-		// hr = m_pIWICFactory->CreateDecoderFromFilename(
-        // szFileName,                      // Image to be decoded
-        // NULL,                            // Do not prefer a particular vendor
-        // GENERIC_READ,                    // Desired read access to the file
-        // WICDecodeMetadataCacheOnDemand,  // Cache metadata when needed
-        // &pDecoder                        // Pointer to the decoder
-        // );
-
-   // Retrieve the first frame of the image from the decoder
-   // IWICBitmapFrameDecode *pFrame = NULL;
-
-   // if (SUCCEEDED(hr))
-   // {
-       // hr = pDecoder->GetFrame(0, &pFrame);
-   // }
-	
-// }
+	file_fullread(location, file);
+	int x; 
+	int y;
+	int channels_in_file;
+	img.memory = (void*)stbi_load_from_memory((stbi_uc*)file->memory, file->size, &x, &y, &channels_in_file, 4);
+	img.x = (ui32)x;
+	img.y = (ui32)y;
+	img.channels_in_file = (ui32)channels_in_file;
+	return img;
+}
 
 #endif /* _FILEH_ */
