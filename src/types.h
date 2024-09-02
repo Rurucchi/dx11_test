@@ -37,7 +37,7 @@ typedef Vector4 v4;
 typedef Matrix mx;
 
 
-//  ----------------------------------- NUMBERS AND MEMORY
+//  ----------------------------------- type checkings and conversions
 
 #define Assert(expression)                                                     \
   if(!(expression)) {                                                          \

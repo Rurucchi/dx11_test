@@ -50,7 +50,28 @@ static LRESULT CALLBACK WindowProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lpa
     return DefWindowProcW(wnd, msg, wparam, lparam);
 }
 
+ui32 platform_get_clock_speed() {
+	LARGE_INTEGER queryClock;
+	QueryPerformanceFrequency(&queryClock);
+	ui32 clockFrequency = SafeTruncateUInt64(queryClock.QuadPart);
+	return clockFrequency;
+};
 
+
+i64 platform_get_tick(){
+	LARGE_INTEGER ticks;
+    if (!QueryPerformanceCounter(&ticks))
+    {
+        FatalError("QueryPerformanceCounter failed!");
+    }
+    return ticks.QuadPart;
+}
+
+f32 platform_get_time(i32 clock){
+	i64 tick = platform_get_tick();
+	f32 time = tick / (f32)clock;
+    return time;
+}
 
 HWND PLATFORM_CREATE_WINDOW(HINSTANCE instance, int width, int height) {
     // register window class to have custom WindowProc callback

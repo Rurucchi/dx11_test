@@ -28,8 +28,10 @@
 // custom libs
 #include "../types.h"
 #include "render.h"
+#include "atlas.h"
 #include "../platform/platform.h"
 #include "../platform/file.h"
+#include "../platform/texture.h"
 
 
 // replace this with your favorite Assert() implementation
@@ -44,9 +46,6 @@
 
 #define STR2(x) #x
 #define STR(x) STR2(x)
-
-
-// ----------------------------------------------- STRUCTS
 
 struct render_context {
 	// basic device stuff
@@ -77,16 +76,12 @@ struct render_context {
 
 // ---------------------- FUNCTIONS
 
-// ----------- RENDER_QUEUE
-
-void RENDER_QUEUE_quad(quad_mesh* quadData, render_context* rContext) {
-		// deprecated? 
+void render_queue_quad(quad_mesh* quadData, render_context* rContext) {	
+	rtpAtlasSprite hitCircle_pos = rtpDescAtlas[0];
+	v2 texposMin = texture_convertTexposMinToNDC(hitCircle_pos);
+	v2 texposMax = texture_convertTexposMaxToNDC(hitCircle_pos);
 	
-        // .topLeft = {quadData->x - (quadData->size/2), quadData->y + (quadData->size/2)},
-        // .topRight = {quadData->x + (quadData->size/2), quadData->y + (quadData->size/2)},
-        // .bottomLeft = {quadData->x - (quadData->size/2), quadData->y - (quadData->size/2)},
-        // .bottomRight = {quadData->x + (quadData->size/2), quadData->y - (quadData->size/2)},
-    
+	// texture_convertTexposToNDC(hitCircle_pos);
 	
 	// todo: refactor this 
     struct vertex VQuad[] =
@@ -99,24 +94,22 @@ void RENDER_QUEUE_quad(quad_mesh* quadData, render_context* rContext) {
 		t -> texture pos;
 		c -> texture color; */  
 		
+		
         // first triangle ◥
-        { quadData->x - (quadData->width/2.f), quadData->y + (quadData->height/2.f), { 0.f, 1.f }, { 1, 1, 1 } },  // top left (2)
-        { quadData->x + (quadData->width/2.f), quadData->y + (quadData->height/2.f), { 1.f,  1.f }, { 1, 1, 1 } },	// top right
-        { quadData->x + (quadData->width/2.f), quadData->y - (quadData->height/2.f), { 1.f,  0.f }, { 1, 1, 1 } },  // bottom right (2)
+        { quadData->x - (quadData->width/2.f), quadData->y + (quadData->height/2.f), { texposMin.x, texposMin.y }, { 1, 1, 1 } },  // top left (2)
+        { quadData->x + (quadData->width/2.f), quadData->y + (quadData->height/2.f), { texposMax.x,  texposMin.y }, { 1, 1, 1 } },	// top right
+        { quadData->x + (quadData->width/2.f), quadData->y - (quadData->height/2.f), { texposMax.x,  texposMax.y }, { 1, 1, 1 } },  // bottom right (2)
         // second triangle ◣
-        { quadData->x - (quadData->width/2.f), quadData->y + (quadData->height/2.f), { 0.f, 1.f }, { 1, 1, 1 } },    	// top left (2)
-        { quadData->x - (quadData->width/2.f), quadData->y - (quadData->height/2.f), { 0.f, 0.f }, { 1, 1, 1 } }, 		// bottom left
-        { quadData->x + (quadData->width/2.f), quadData->y - (quadData->height/2.f), { 1.f,  0.f }, { 1, 1, 1 } },   // bottom right (2)
+        { quadData->x - (quadData->width/2.f), quadData->y + (quadData->height/2.f), { texposMin.x, texposMin.y }, { 1, 1, 1 } },    	// top left (2)
+        { quadData->x - (quadData->width/2.f), quadData->y - (quadData->height/2.f), { texposMin.x,  texposMax.y }, { 1, 1, 1 } }, 		// bottom left
+        { quadData->x + (quadData->width/2.f), quadData->y - (quadData->height/2.f), { texposMax.x,  texposMax.y }, { 1, 1, 1 } },   // bottom right (2)
     };
 	
     for(int i=0; i<6; i++) {
 		rContext->vQueue[rContext->vCount] = VQuad[i];
 		rContext->vCount++;
 	};
-}
-
-
-// --------------------------------- RENDER_UPLOAD
+};
 
 void RENDER_UPLOAD_DYNAMIC_VertexQueue(render_context* rContext){
 	D3D11_MAPPED_SUBRESOURCE mapped;
@@ -124,10 +117,7 @@ void RENDER_UPLOAD_DYNAMIC_VertexQueue(render_context* rContext){
 	rContext->context->Map((ID3D11Resource*)rContext->vbuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
 	memcpy(mapped.pData, rContext->vQueue, sizeof(vertex)*rContext->vCount);
 	rContext->context->Unmap((ID3D11Resource*)rContext->vbuffer, 0);
-}
-
-// --------------------------------- ROTATE OBJECT
-
+};
 
 void render_upload_camera_uBuffer(render_context *rContext, game_camera* camera, viewport_size vp){	
 	
@@ -136,23 +126,12 @@ void render_upload_camera_uBuffer(render_context *rContext, game_camera* camera,
 	
 	mx matrix = game_OrthographicProjection(camera, width, height);
 	
-	D3D11_BUFFER_DESC desc =
-    {
-        .ByteWidth = sizeof(matrix) * 2,
-		.Usage = D3D11_USAGE_DYNAMIC,
-		.BindFlags = D3D11_BIND_CONSTANT_BUFFER,
-		.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
-	};
-
-	D3D11_SUBRESOURCE_DATA initial = { .pSysMem = &matrix };
-    rContext->device->CreateBuffer(&desc, NULL, &rContext->ubuffer);
-	
 	D3D11_MAPPED_SUBRESOURCE mapped;
 	
 	rContext->context->Map(rContext->ubuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
 	memcpy(mapped.pData, &matrix, sizeof(matrix));
 	rContext->context->Unmap(rContext->ubuffer, 0);
-}
+};
 
 void RENDER_INIT_PIPELINE(render_context* rContext, viewport_size* vpSize){
 	
@@ -191,9 +170,8 @@ void RENDER_INIT_PIPELINE(render_context* rContext, viewport_size* vpSize){
 	rContext->context->OMSetBlendState(rContext->blendState, NULL, ~0U);
 	rContext->context->OMSetDepthStencilState(rContext->depthState, 0);
 	rContext->context->OMSetRenderTargets(1, &rContext->rtView, rContext->dsView);	
-}
+};
 
-// --------------------------------- RENDER_INIT
 
 void RENDER_INIT_DYNAMIC_VertexBuffer(render_context *rContext, int bufferSize) {
 	D3D11_BUFFER_DESC desc =
@@ -208,7 +186,18 @@ void RENDER_INIT_DYNAMIC_VertexBuffer(render_context *rContext, int bufferSize) 
     rContext->device->CreateBuffer(&desc, NULL, &rContext->vbuffer);
 }
 
-// --------------------------------- RENDER_RESIZE_SWAP_CHAIN
+void render_init_ubuffer(render_context* rContext) {
+	D3D11_BUFFER_DESC desc =
+    {
+        .ByteWidth = sizeof(mx) * 2,
+		.Usage = D3D11_USAGE_DYNAMIC,
+		.BindFlags = D3D11_BIND_CONSTANT_BUFFER,
+		.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
+	};
+
+    rContext->device->CreateBuffer(&desc, NULL, &rContext->ubuffer); 
+};
+
 
 void RENDER_RESIZE_SWAP_CHAIN(HWND window, viewport_size* windowSize, render_context* rContext) {
 	
@@ -272,11 +261,7 @@ void RENDER_RESIZE_SWAP_CHAIN(HWND window, viewport_size* windowSize, render_con
 			windowSize->width = newWindowSize.width;
 			windowSize->height = newWindowSize.height;
         }
-}
-
-
-
-// --------------------------------- RENDER_QUEUE
+};
 
 HRESULT RENDER_INIT_DX(HWND window, render_context* rContext, game_camera* camera) {
 	
@@ -386,7 +371,10 @@ HRESULT RENDER_INIT_DX(HWND window, render_context* rContext, game_camera* camer
 		
     }
 
-
+	// init needed buffers 
+	{
+		render_init_ubuffer(rContext);	
+	}
    
 
     // vertex & pixel shaders for drawing triangle, plus input layout for vertex input
@@ -433,7 +421,7 @@ HRESULT RENDER_INIT_DX(HWND window, render_context* rContext, game_camera* camer
         // };
 		
 		// open and decode the hitcircle texture
-		char* location = gameObjectLocation;
+		char* location = gameTextureLocation;
 		complete_file textureFile = {0};
 		complete_img hitcircle_sprite = file_decodePNG(location, &textureFile);
 
@@ -459,6 +447,7 @@ HRESULT RENDER_INIT_DX(HWND window, render_context* rContext, game_camera* camer
         rContext->device->CreateTexture2D(&desc, &data, &texture);
         rContext->device->CreateShaderResourceView((ID3D11Resource*)texture, NULL, &rContext->textureView);
         texture->Release();
+		file_fullfree(&textureFile);
     }
 
     
@@ -539,8 +528,20 @@ HRESULT RENDER_INIT_DX(HWND window, render_context* rContext, game_camera* camer
 
 
 	return hr;
-}
+};
 
 
+
+// game related rendering
+
+void game_render_hitcircle(hit_circle circle, render_context* rContext) {
+	quad_mesh quad1 = {
+		.x = circle.x,
+		.y = circle.y,
+		.width = 128,
+		.height = 128,
+	};
+	render_queue_quad(&quad1, rContext);
+};
 
 #endif /* _DX11H_ */

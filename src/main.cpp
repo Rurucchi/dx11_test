@@ -53,10 +53,10 @@
 
 // my stuff 
 #include "types.h"
-#include "game/game.h"
 #include "game/location.h"
 #include "render/ui.h"
 #include "render/dx11.h"
+#include "game/game.h"
 #include "platform/platform.h"
 
 enum GameState { menu, pause, game };
@@ -64,7 +64,9 @@ enum GameState { menu, pause, game };
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, int cmdshow)
 {
 	HRESULT hr;
-
+	ui32 platformClockSpeed = platform_get_clock_speed();
+	
+	f32 time = platform_get_time(platformClockSpeed);
 	
 	// init window handle (and size)
     ui32 width = CW_USEDEFAULT;
@@ -88,9 +90,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 	
 	IMGUI_INIT(window, rContext);
 	
-	
-	
-	
 	viewport_size windowSize = {
 		.height = 0,
 		.width = 0,
@@ -101,6 +100,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 		.height = 384,
 		.width = 512,
 	};
+	
+	int clockFrequency;
 	
 	//  ------------------------------------------- frame loop
 
@@ -134,8 +135,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 			viewport_size vp = platform_getWindowSize(window);
 			render_upload_camera_uBuffer(&rContext, &camera, vp);
 			
-			
-			
             LARGE_INTEGER c2;
             QueryPerformanceCounter(&c2);
             float delta = (float)((double)(c2.QuadPart - c1.QuadPart) / freq.QuadPart);
@@ -145,7 +144,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 
 
             // clear screen
-            FLOAT color[] = { 0.392f, 0.584f, 0.929f, 1.f };
+            FLOAT color[] = { 0.f, 0.f, 0.f, 1.f };
             rContext.context->ClearRenderTargetView(rContext.rtView, color);
             rContext.context->ClearDepthStencilView(rContext.dsView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.f, 0);
 
@@ -155,8 +154,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 			quad_mesh quad1 = {
 				.x = 0,
 				.y = 0,
-				.width = 256,
-				.height = 256,
+				.width = 128,
+				.height = 128,
 			};
 			
             // draw vertices
@@ -169,7 +168,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 				ImGui::Text("FPS : %f", 1.0f/delta);
 				if(ImGui::Button("button")){
 					ImGui::Text("pressed");
-					RENDER_QUEUE_quad(&quad1, &rContext);
+					render_queue_quad(&quad1, &rContext);
 					RENDER_UPLOAD_DYNAMIC_VertexQueue(&rContext);
 				}
 				ImGui::Text("Vertex count : %d", rContext.vCount);

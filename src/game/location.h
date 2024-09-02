@@ -1,5 +1,5 @@
 /*  ----------------------------------- INFOS
-	This header file contains file locations. Likely to be updated as the project progresses.
+	Temporary header file until I make an asset builder for compiling osu! skins.
 	
 */
 
@@ -8,6 +8,6 @@
 #ifndef _LOCATIONH_
 #define _LOCATIONH_
 
-global_variable char gameObjectLocation[] = "../assets/new_skin/game_objects.png";
+global_variable char gameTextureLocation[] = "../assets/new_skin/atlas.png";
 
 #endif /* _LOCATIONH_ */

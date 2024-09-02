@@ -8,6 +8,14 @@
 
 // LOCAL DEPENDENCIES : types.h
 #include "../types.h"
+#include "../render/dx11.h"
+#include "../render/render.h"
+#include "entities.h"
+
+struct map_stats {
+	ui8 overall_difficulty;
+	ui8 circle_size;
+};
 
 // todo: make mods working, add support for other mods
 struct mods {
