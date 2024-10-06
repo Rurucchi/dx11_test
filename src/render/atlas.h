@@ -9,6 +9,10 @@
 //                                                                              //
 //////////////////////////////////////////////////////////////////////////////////
 
+
+#ifndef _ATLASH_
+#define _ATLASH_
+
 #define ATLAS_ATLAS_IMAGE_PATH      "atlas.png"
 #define ATLAS_ATLAS_SPRITE_COUNT    14
 
@@ -27,6 +31,7 @@ typedef struct rtpAtlasSprite {
 static rtpAtlasSprite rtpDescAtlas[14] = {
     { "hitcircle@2x", 0, 0, 520, 0, 240, 240, 0, false, 6, 5, 228, 230 },
     { "hitcircleoverlay@2x", 0, 0, 0, 0, 260, 260, 0, false, 0, 0, 260, 260 },
+	{ "approachcircle@2x", 0, 0, 260, 0, 260, 260, 0, false, 0, 0, 260, 260 },
     { "default-0@2x", 0, 0, 609, 260, 87, 120, 0, false, 0, 3, 87, 116 },
     { "default-1@2x", 0, 0, 760, 0, 87, 120, 0, false, 12, 5, 64, 112 },
     { "default-5@2x", 0, 0, 847, 0, 87, 120, 0, false, 0, 2, 87, 117 },
@@ -38,5 +43,6 @@ static rtpAtlasSprite rtpDescAtlas[14] = {
     { "default-2@2x", 0, 0, 348, 260, 87, 120, 0, false, 0, 2, 87, 117 },
     { "default-3@2x", 0, 0, 435, 260, 87, 120, 0, false, 0, 2, 87, 117 },
     { "default-4@2x", 0, 0, 522, 260, 87, 120, 0, false, 0, 3, 87, 115 },
-    { "approachcircle@2x", 0, 0, 260, 0, 260, 260, 0, false, 0, 0, 260, 260 },
 };
+
+#endif /* _ATLASH_ */

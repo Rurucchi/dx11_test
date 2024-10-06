@@ -50,6 +50,12 @@ ui32 SafeTruncateUInt64(ui64 value){
   return result;
 }
 
+
+//  ----------------------------------- math
+float slope(float min, float max, float cap) {
+	return (max - min) / cap;
+};
+
 //  ----------------------------------- PLATFORM
 
 

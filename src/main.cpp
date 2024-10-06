@@ -64,15 +64,17 @@ enum GameState { menu, pause, game };
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, int cmdshow)
 {
 	HRESULT hr;
-	ui32 platformClockSpeed = platform_get_clock_speed();
 	
-	f32 time = platform_get_time(platformClockSpeed);
+	ui32 platformClockSpeed = platform_get_clock_speed();
+	LARGE_INTEGER freq, c1;
+	QueryPerformanceCounter(&c1);
+	
+	f64 currentTime = platform_get_time(platformClockSpeed);
 	
 	// init window handle (and size)
     ui32 width = CW_USEDEFAULT;
     ui32 height = CW_USEDEFAULT;
 	HWND window = PLATFORM_CREATE_WINDOW(instance, width, height);
-
     
 	game_camera camera = {0};
 	
@@ -84,9 +86,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
     // show the window
     ShowWindow(window, SW_SHOWDEFAULT);
 
-    LARGE_INTEGER freq, c1;
-    QueryPerformanceFrequency(&freq);
-    QueryPerformanceCounter(&c1);
 	
 	IMGUI_INIT(window, rContext);
 	
@@ -104,10 +103,40 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 	int clockFrequency;
 	
 	//  ------------------------------------------- frame loop
-
+	
+	// loaded entities array
+	ui32 entityCount = 0;
+	game_entity loadedEntities[1024];
+	
+	// render array
+	ui32 verticesCount = 0;
+	ui32 renderCount = 0;
+	int renderList[1024];
+	
+	// todo: implement approach rate calculation
+	// for now AR = 10, so 450ms.
+	
+	game_entity circle = {
+		.aliveTime = 0.450,
+		.type = hit_circle,
+		.x = 0,
+		.y = 0,
+		.size = 100,
+		.order = 1,
+	};
+	
+	game_entity approachCircle = {
+			.aliveTime = 0.450,
+			.type = approach_circle,
+		.x = 0,
+		.y = 0,
+		.size = 400,
+		.order = 1,
+	};
+	
 	for (;;)
     {
-
+		f64 newTime = platform_get_time(platformClockSpeed);
 		
         // process all incoming Windows messages
         MSG msg;
@@ -122,9 +151,17 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
             continue;
         }
 		
+		
+		// game logic 
+		renderCount = 0;
+		game_update_entity(aliveEntities, &entityCount, &renderCount, &verticesCount, (newTime - currentTime));
+		
+		
 		// RENDERING (DX)
 
         // resize swap chain if needed
+		render_reset_frame(&rContext);
+		
 		RENDER_RESIZE_SWAP_CHAIN(window, &windowSize, &rContext);
 		
 
@@ -137,7 +174,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 			
             LARGE_INTEGER c2;
             QueryPerformanceCounter(&c2);
-            float delta = (float)((double)(c2.QuadPart - c1.QuadPart) / freq.QuadPart);
+            float delta = (f32)((f64)(c2.QuadPart - c1.QuadPart) / platformClockSpeed);
             c1 = c2;
 
             // output viewport covering all client area of window
@@ -151,41 +188,44 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 			RENDER_INIT_PIPELINE(&rContext, &windowSize);
 			
 			// ---------------------------- add stuff to render
-			quad_mesh quad1 = {
-				.x = 0,
-				.y = 0,
-				.width = 128,
-				.height = 128,
-			};
 			
             // draw vertices
-            rContext.context->Draw(rContext.vCount, 0);
+            rContext.context->Draw(entityCount * 6, 0);
 			
 			// IMGUI RENDER
 			IMGUI_RENDER();
 			
 			if(ImGui::Begin("test")){
 				ImGui::Text("FPS : %f", 1.0f/delta);
+				ImGui::Text("entity count : %d", entityCount);
+				
 				if(ImGui::Button("button")){
 					ImGui::Text("pressed");
-					render_queue_quad(&quad1, &rContext);
-					RENDER_UPLOAD_DYNAMIC_VertexQueue(&rContext);
+					aliveEntities[entityCount] = circle;
+					entityCount += 2;
+					aliveEntities[entityCount] = approachCircle;
+					entityCount++;
 				}
-				ImGui::Text("Vertex count : %d", rContext.vCount);
-				
 			} ImGui::End();
 
 			ImGui::Render();
 			ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 			
-		
+			// actual rendering
+			
+			render_entity(renderList, entityCount, &rContext);
+			//upload vertices to GPU
+			RENDER_UPLOAD_DYNAMIC_VertexQueue(&rContext);
         }
 
         // change to FALSE to disable vsync
         BOOL vsync = FALSE;
         hr = rContext.swapChain->Present(vsync ? 1 : 0, 0);
 		
-		hr = rContext.device->GetDeviceRemovedReason();
+		// error control
+		// hr = rContext.device->GetDeviceRemovedReason();
+		
+		
 		
         if (hr == DXGI_STATUS_OCCLUDED)
         {
@@ -199,6 +239,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
         {
             FatalError("Failed to present swap chain! Device lost?");
         }
+		
+		currentTime = newTime;
     }
 
 	return 1;

@@ -28,7 +28,6 @@
 // custom libs
 #include "../types.h"
 #include "render.h"
-#include "atlas.h"
 #include "../platform/platform.h"
 #include "../platform/file.h"
 #include "../platform/texture.h"
@@ -67,7 +66,7 @@ struct render_context {
 	
 	// buffers and shaders
 	int vCount;
-	vertex vQueue[2048];
+	vertex vQueue[4096];
 	ID3D11Buffer* vbuffer;
 	ID3D11Buffer* ubuffer;
 	ID3D11SamplerState* sampler;
@@ -76,11 +75,7 @@ struct render_context {
 
 // ---------------------- FUNCTIONS
 
-void render_queue_quad(quad_mesh* quadData, render_context* rContext) {	
-	rtpAtlasSprite hitCircle_pos = rtpDescAtlas[0];
-	v2 texposMin = texture_convertTexposMinToNDC(hitCircle_pos);
-	v2 texposMax = texture_convertTexposMaxToNDC(hitCircle_pos);
-	
+void render_queue_quad(quad_mesh* quadData, v2 texposMin, v2 texposMax, render_context* rContext) {		
 	// texture_convertTexposToNDC(hitCircle_pos);
 	
 	// todo: refactor this 
@@ -530,18 +525,8 @@ HRESULT RENDER_INIT_DX(HWND window, render_context* rContext, game_camera* camer
 	return hr;
 };
 
-
-
-// game related rendering
-
-void game_render_hitcircle(hit_circle circle, render_context* rContext) {
-	quad_mesh quad1 = {
-		.x = circle.x,
-		.y = circle.y,
-		.width = 128,
-		.height = 128,
-	};
-	render_queue_quad(&quad1, rContext);
+void render_reset_frame(render_context* rContext){
+	rContext->vCount = 0;
 };
 
 #endif /* _DX11H_ */

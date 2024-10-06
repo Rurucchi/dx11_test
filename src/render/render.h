@@ -10,7 +10,6 @@
 #include "../types.h"
 #include "../platform/platform.h"
 #include "../platform/file.h"
-#include "../game/game.h"
 
 struct vertex
 {
@@ -25,6 +24,13 @@ struct quad_mesh {
 	i32 width;
 	i32 height;
 	// float orientation;
+};
+
+struct game_camera
+{
+    v2 position;
+    f32 ratio;
+    f32 scale; // height = scale, width = ratio * scale
 };
 
 // camera projection

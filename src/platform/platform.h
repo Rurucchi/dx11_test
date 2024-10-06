@@ -67,9 +67,9 @@ i64 platform_get_tick(){
     return ticks.QuadPart;
 }
 
-f32 platform_get_time(i32 clock){
+f64 platform_get_time(i32 clock){
 	i64 tick = platform_get_tick();
-	f32 time = tick / (f32)clock;
+	f64 time = tick / (f64)clock;
     return time;
 }
 
