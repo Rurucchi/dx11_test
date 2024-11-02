@@ -18,6 +18,7 @@ enum entity_type {approach_circle, hit_circle, slider_ball, slider_tick, slider_
 
 struct game_entity {
 	f32 aliveTime;
+	f32 maxAliveTime;
 	entity_type type;
 	i16 x;
 	i16 y;
@@ -64,36 +65,31 @@ struct score {
 
 // game logic
 
-void game_update_entity(game_entity entity[], int renderList[], ui32* entityCount, ui32* renderCount, ui32* verticesCount, f64 elapsed){
-	for(int i = 0; i < *entityCount; i++) {
-		entity[i].aliveTime -= elapsed;
-		if(entity[i].aliveTime > 0){
-			switch(entity[i].type) {
+void game_update_entity(game_entity* loadedEntities, game_entity** renderList, ui32 entityCount, ui32* renderCount, f64 elapsed){
+	for(int i = 0; i < entityCount; i++) {
+		loadedEntities[i].aliveTime -= elapsed;
+		if(loadedEntities[i].aliveTime > 0){
+			switch(loadedEntities[i].type) {
 				case approach_circle: {
 					// resize approach circle relative to alive time
-					float size = slope(100, 400, 450) * entity[i].aliveTime + 100;
-					entity[i].size = (ui16)size;
+					float size = lerp(100, 400, loadedEntities[i].aliveTime / loadedEntities[i].maxAliveTime);
+					loadedEntities[i].size = (ui16)size;
 					
 					// add it to the render queue
-					renderList[*renderCount] = (int)&entity[i];
-					*renderCount++;
-					verticesCount += 6;
+					renderList[*renderCount] = &loadedEntities[i];
+					(*renderCount)++;
 					break;
 				};
 				
 				case hit_circle: {
 					// add circle (and number, its existence implied by hitcircle order) to the render queue
-					renderList[*renderCount] = &entity;
-					*renderCount++;
-					verticesCount += 12;
+					renderList[*renderCount] = &loadedEntities[i];
+					(*renderCount)++;
+					break;
 				};
 			};
 		};
 	};
-};
-
-game_entity game_get_entity_from_renderList(int renderListElement) {
-	return (game_entity)*renderListElement;
 };
 
 // game rendering
@@ -109,22 +105,23 @@ void game_resizeCamera(game_camera* camera, HWND window) {
 };
 
 // circle is a pointer to a hit_circle array here
-void render_entity(int renderList[], ui32 renderCount, render_context* rContext) {
+void render_entity(game_entity** renderList, ui32 renderCount, f64 elapsed, render_context* rContext) {
 	// check if there are any entity to draw
 	if(renderCount != 0) {
 		
 		// render each entity
 		for(int i = 0; i < renderCount; i++) {
 			// entity will be considered "dead" if its aliveTime is zero or less and will not be rendered.
-			if (game_get_entity_from_renderList(renderList[i]).aliveTime > 0){
+			if(renderList[i]->aliveTime > 0) {
+				
 				// handle its type
-				switch(game_get_entity_from_renderList(renderList[i]).type) {
+				switch(renderList[i]->type) {
 					case approach_circle: {
 						quad_mesh approachCircleQuad = {
-							.x = entity[i].x,
-							.y = entity[i].y,
-							.width = entity[i].size,
-							.height = entity[i].size,
+							.x = renderList[i]->x,
+							.y = renderList[i]->y,
+							.width = renderList[i]->size,
+							.height = renderList[i]->size,
 						};
 						
 						rtpAtlasSprite approachCircle_pos = rtpDescAtlas[2];
@@ -136,17 +133,17 @@ void render_entity(int renderList[], ui32 renderCount, render_context* rContext)
 					
 					case hit_circle: {
 						quad_mesh hitCircleQuad = {
-						.x = entity[i].x,
-						.y = entity[i].y,
-						.width = entity[i].size,
-						.height = entity[i].size,
+						.x = renderList[i]->x,
+						.y = renderList[i]->y,
+						.width = renderList[i]->size,
+						.height = renderList[i]->size,
 						};
 						
 						quad_mesh numberQuad = {
-							.x = entity[i].x,
-							.y = entity[i].y,
-							.width = entity[i].size / 2,
-							.height = entity[i].size / 2,
+							.x = renderList[i]->x,
+							.y = renderList[i]->y,
+							.width = renderList[i]->size / 2,
+							.height = renderList[i]->size / 2,
 						};
 						
 						rtpAtlasSprite hitCircle_pos = rtpDescAtlas[0];

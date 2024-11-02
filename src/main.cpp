@@ -109,15 +109,15 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 	game_entity loadedEntities[1024];
 	
 	// render array
-	ui32 verticesCount = 0;
 	ui32 renderCount = 0;
-	int renderList[1024];
+	game_entity renderList[1024];
 	
 	// todo: implement approach rate calculation
 	// for now AR = 10, so 450ms.
 	
 	game_entity circle = {
 		.aliveTime = 0.450,
+		.maxAliveTime = 0.450,
 		.type = hit_circle,
 		.x = 0,
 		.y = 0,
@@ -126,8 +126,9 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 	};
 	
 	game_entity approachCircle = {
-			.aliveTime = 0.450,
-			.type = approach_circle,
+		.aliveTime = 0.450,
+		.maxAliveTime = 0.450,
+		.type = approach_circle,
 		.x = 0,
 		.y = 0,
 		.size = 400,
@@ -151,17 +152,13 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
             continue;
         }
 		
-		
-		// game logic 
-		renderCount = 0;
-		game_update_entity(aliveEntities, &entityCount, &renderCount, &verticesCount, (newTime - currentTime));
-		
-		
 		// RENDERING (DX)
 
-        // resize swap chain if needed
+        // reset frame and rendering data
 		render_reset_frame(&rContext);
+		renderCount = 0;
 		
+		// resize swap chain if needed
 		RENDER_RESIZE_SWAP_CHAIN(window, &windowSize, &rContext);
 		
 
@@ -188,9 +185,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 			RENDER_INIT_PIPELINE(&rContext, &windowSize);
 			
 			// ---------------------------- add stuff to render
-			
-            // draw vertices
-            rContext.context->Draw(entityCount * 6, 0);
+		
 			
 			// IMGUI RENDER
 			IMGUI_RENDER();
@@ -201,9 +196,9 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 				
 				if(ImGui::Button("button")){
 					ImGui::Text("pressed");
-					aliveEntities[entityCount] = circle;
-					entityCount += 2;
-					aliveEntities[entityCount] = approachCircle;
+					loadedEntities[entityCount] = circle;
+					entityCount++;
+					loadedEntities[entityCount] = approachCircle;
 					entityCount++;
 				}
 			} ImGui::End();
@@ -211,11 +206,19 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previnstance, LPSTR cmdline, in
 			ImGui::Render();
 			ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 			
+			// game logic 
+		
+			game_update_entity(loadedEntities, (game_entity**)&renderList, entityCount, &renderCount, (newTime - currentTime));
+			
 			// actual rendering
 			
-			render_entity(renderList, entityCount, &rContext);
+			render_entity((game_entity**)&renderList, renderCount, (newTime - currentTime), &rContext);
+			
 			//upload vertices to GPU
 			RENDER_UPLOAD_DYNAMIC_VertexQueue(&rContext);
+			
+			// draw vertices
+            rContext.context->Draw(rContext.vCount, 0);
         }
 
         // change to FALSE to disable vsync
